@@ -59,14 +59,8 @@ android {
         }
     }
 
-    splits {
-        abi {
-            isEnable = true
-            reset()
-            include("arm64-v8a")
-            isUniversalApk = false
-        }
-    }
+    // Removed splits configuration to avoid conflict with ndk abiFilters
+    // Using only ndk abiFilters for single APK generation
 }
 
 dependencies {
