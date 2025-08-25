@@ -19,3 +19,13 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Keep Material3 classes
+-keep class androidx.compose.material3.** { *; }
+-keep class androidx.compose.ui.** { *; }
+-keep class androidx.compose.runtime.** { *; }
+
+# Keep Compose related classes
+-keepclassmembers class androidx.compose.** {
+    *;
+}
