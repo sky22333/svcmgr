@@ -200,7 +200,7 @@ fi
 
 
 # Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
-DEFAULT_JVM_OPTS='-Xmx512m -Xms256m'
+DEFAULT_JVM_OPTS='"-Xmx512m" "-Xms256m"'
 
 # Collect all arguments for the java command:
 #   * DEFAULT_JVM_OPTS, JAVA_OPTS, JAVA_OPTS, and optsEnvironmentVar are not allowed to contain shell fragments,
@@ -208,11 +208,7 @@ DEFAULT_JVM_OPTS='-Xmx512m -Xms256m'
 #   * For example: A user cannot expect ${Hostname} to be expanded, as it is an environment variable and will be
 #     treated as '${Hostname}' itself on the command line.
 
-set -- \
-        "-Dorg.gradle.appname=$APP_BASE_NAME" \
-        -classpath "$CLASSPATH" \
-        org.gradle.wrapper.GradleWrapperMain \
-        "$@"
+# Arguments are now set above in the safer parsing section
 
 # Stop when "xargs" is not available.
 if ! command -v xargs >/dev/null 2>&1
@@ -248,10 +244,14 @@ fi
 # double quotes. Using printf instead of echo in bash is a good practice
 # anyway.
 
-eval "set -- $(
-        printf '%s\n' "$DEFAULT_JVM_OPTS $JAVA_OPTS $GRADLE_OPTS" |
-        xargs -n1 |
-        sed 's/\([^a-zA-Z0-9_/:.-]\)/\\\1/g; s/^/"/; s/$/"/g'
-    )"
+# Parse JVM options more safely
+set -- \
+        $DEFAULT_JVM_OPTS \
+        $JAVA_OPTS \
+        $GRADLE_OPTS \
+        "-Dorg.gradle.appname=$APP_BASE_NAME" \
+        -classpath "$CLASSPATH" \
+        org.gradle.wrapper.GradleWrapperMain \
+        "$@"
 
 exec "$JAVACMD" "$@"
