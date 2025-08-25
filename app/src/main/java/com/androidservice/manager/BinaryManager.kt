@@ -11,7 +11,7 @@ class BinaryManager(private val context: Context) {
 
     companion object {
         private const val BINARIES_DIR = "binaries"
-        private val SUPPORTED_ABIS = listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+        private val SUPPORTED_ABIS = listOf("arm64-v8a")
     }
 
     private val binariesDir: File

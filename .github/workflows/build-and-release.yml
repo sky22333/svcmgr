@@ -19,10 +19,10 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Set up JDK 11
+    - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
-        java-version: '11'
+        java-version: '17'
         distribution: 'temurin'
         
     - name: Setup Android SDK
@@ -85,12 +85,11 @@ jobs:
           ## 🚀 Android Service Manager ${{ steps.get_tag.outputs.tag }}
           
           ### 📱 下载
-          - **APK (通用版)**: 支持所有架构的设备
-          - **APK (分架构版)**: 针对特定架构优化的版本
+          - **APK (ARM64版)**: 针对 ARM64 架构优化
           - **AAB**: Google Play 上架版本
           
           ### ✨ 功能特性
-          - 🔧 二进制文件管理（支持多ABI架构）
+          - 🔧 二进制文件管理（ARM64架构）
           - 🚀 进程启动、停止、监控
           - 🔄 自动重启机制
           - 📊 实时日志显示
@@ -105,7 +104,7 @@ jobs:
           
           ### 📋 系统要求
           - Android 7.0 (API 24) 及以上版本
-          - 支持架构: armeabi-v7a, arm64-v8a, x86, x86_64
+          - 支持架构: arm64-v8a
           
           ---
           
@@ -121,16 +120,6 @@ jobs:
           3. 在"主页"启动服务
           4. 在"日志"页面查看运行状态
           
-    - name: Upload Universal APK
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: app/build/outputs/apk/release/app-universal-release.apk
-        asset_name: android-service-manager-${{ steps.get_tag.outputs.tag }}-universal.apk
-        asset_content_type: application/vnd.android.package-archive
-        
     - name: Upload ARM64 APK
       uses: actions/upload-release-asset@v1
       env:
@@ -139,36 +128,6 @@ jobs:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: app/build/outputs/apk/release/app-arm64-v8a-release.apk
         asset_name: android-service-manager-${{ steps.get_tag.outputs.tag }}-arm64-v8a.apk
-        asset_content_type: application/vnd.android.package-archive
-        
-    - name: Upload ARMv7 APK
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: app/build/outputs/apk/release/app-armeabi-v7a-release.apk
-        asset_name: android-service-manager-${{ steps.get_tag.outputs.tag }}-armeabi-v7a.apk
-        asset_content_type: application/vnd.android.package-archive
-        
-    - name: Upload x86_64 APK
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: app/build/outputs/apk/release/app-x86_64-release.apk
-        asset_name: android-service-manager-${{ steps.get_tag.outputs.tag }}-x86_64.apk
-        asset_content_type: application/vnd.android.package-archive
-        
-    - name: Upload x86 APK
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: app/build/outputs/apk/release/app-x86-release.apk
-        asset_name: android-service-manager-${{ steps.get_tag.outputs.tag }}-x86.apk
         asset_content_type: application/vnd.android.package-archive
         
     - name: Upload AAB

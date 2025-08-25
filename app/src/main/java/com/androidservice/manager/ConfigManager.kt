@@ -13,6 +13,7 @@ import com.androidservice.data.BinaryConfig
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.io.File
 
@@ -74,7 +75,7 @@ class ConfigManager(private val context: Context) {
     }
 
     suspend fun loadConfig(): BinaryConfig {
-        return configFlow.map { it }.first()
+        return configFlow.first()
     }
 
     suspend fun exportConfigToJson(config: BinaryConfig): String {
@@ -127,14 +128,3 @@ class ConfigManager(private val context: Context) {
     }
 }
 
-// Extension function to get first value from Flow
-private suspend fun <T> Flow<T>.first(): T {
-    var result: T? = null
-    collect { value ->
-        if (result == null) {
-            result = value
-            return@collect
-        }
-    }
-    return result!!
-}

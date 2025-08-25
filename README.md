@@ -17,7 +17,7 @@ Android Service Manager 是一个现代化的 Android 应用，专为管理跨�
 
 ### ✨ 核心特性
 
-- 🔧 **二进制文件管理** - 支持多 ABI 架构（ARM64, ARMv7, x86, x86_64）
+- 🔧 **二进制文件管理** - 专为 ARM64 架构优化
 - 🚀 **进程服务管理** - 启动、停止、监控二进制进程
 - 🔄 **自动重启机制** - 智能监控进程状态，异常时自动重启
 - 📊 **实时日志显示** - 实时捕获和显示进程输出
@@ -55,7 +55,7 @@ Android Service Manager 是一个现代化的 Android 应用，专为管理跨�
 ### 系统要求
 
 - Android 7.0 (API 24) 及以上版本
-- 支持架构: ARM64, ARMv7, x86, x86_64
+- 支持架构: ARM64 (arm64-v8a)
 
 ### 安装方式
 
@@ -119,14 +119,8 @@ Android Service Manager 是一个现代化的 Android 应用，专为管理跨�
 
 ```
 assets/
-├── arm64-v8a/
-│   └── xray          # ARM64 架构版本
-├── armeabi-v7a/
-│   └── xray          # ARM 32位版本
-├── x86_64/
-│   └── xray          # Intel 64位版本
-└── x86/
-    └── xray          # Intel 32位版本
+└── arm64-v8a/
+    └── xray          # ARM64 架构版本
 ```
 
 ## 🛠️ 开发构建

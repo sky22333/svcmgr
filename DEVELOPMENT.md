@@ -41,7 +41,7 @@ app/src/main/java/com/androidservice/
 
 ### 1. 二进制文件管理 (BinaryManager)
 
-- **多ABI支持**: 支持 armeabi-v7a, arm64-v8a, x86, x86_64
+- **ARM64 专用**: 专为 arm64-v8a 架构优化
 - **自动复制**: 从 assets 复制到应用私有目录
 - **权限设置**: 自动设置可执行权限
 - **智能选择**: 根据设备架构自动选择最佳二进制文件
@@ -86,14 +86,14 @@ app/src/main/java/com/androidservice/
 - Android SDK API 35 (compileSdk)
 - 最低支持 Android 7.0 (API 24)
 - Gradle 8.9
-- JDK 11+
+- JDK 17+
 
 ## 构建配置
 
 ### Gradle 配置特性
 
-- **多ABI支持**: 自动构建不同架构的APK
-- **通用APK**: 包含所有架构的通用版本
+- **ARM64专用**: 专为 arm64-v8a 架构构建
+- **JDK 17**: 使用最新的 JDK 17 环境
 - **代码混淆**: Release版本启用ProGuard
 - **增量编译**: 优化构建速度
 
