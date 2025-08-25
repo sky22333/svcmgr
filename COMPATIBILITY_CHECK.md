@@ -64,6 +64,17 @@
 - 📝 **构建脚本**: 提供 build-test.bat 和 build-test.sh
 - ⚠️ **测试构建**: 需要运行本地测试验证
 
+## 🚨 重要修复
+
+### Gradle Wrapper 问题
+- ❌ **缺少 gradle-wrapper.jar**: 项目缺少 Gradle Wrapper JAR 文件
+- 📋 **解决方案**: 参考 `SETUP_GRADLE_WRAPPER.md` 文档
+- 🔧 **快速修复**: 运行 `gradle wrapper --gradle-version 8.9`
+
+### JVM 参数修复
+- ✅ **gradlew**: 修复 JVM 内存参数 (-Xmx512m -Xms256m)
+- ✅ **gradlew.bat**: 修复 Windows 版本 JVM 参数
+
 ## ⚠️ 注意事项
 
 ### 架构限制
