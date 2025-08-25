@@ -1,15 +1,6 @@
 # Android Service Manager
 
-<div align="center">
-  <h3>🚀 现代化的 Android 二进制服务管理器</h3>
-  <p>基于 Kotlin + Jetpack Compose + Material Design 3 构建</p>
-  
-  [![Build Status](https://github.com/your-username/android-service/actions/workflows/build.yml/badge.svg)](https://github.com/your-username/android-service/actions)
-  [![Release](https://img.shields.io/github/v/release/your-username/android-service)](https://github.com/your-username/android-service/releases)
-  [![API](https://img.shields.io/badge/API-24%2B-brightgreen.svg?style=flat)](https://android-arsenal.com/api?level=24)
-  [![Kotlin](https://img.shields.io/badge/kotlin-2.1.0-blue.svg?logo=kotlin)](http://kotlinlang.org)
-  [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-</div>
+现代化的 Android 二进制服务管理器 
 
 ## 🎯 项目简介
 
@@ -56,19 +47,6 @@ Android Service Manager 是一个现代化的 Android 应用，专为管理跨�
 
 - Android 7.0 (API 24) 及以上版本
 - 支持架构: ARM64 (arm64-v8a)
-
-### 安装方式
-
-1. **从 Releases 下载**
-   - [最新版本](https://github.com/your-username/android-service/releases/latest)
-   - 选择对应架构的 APK 文件，或下载通用版本
-
-2. **手动安装**
-   ```bash
-   # 启用未知来源安装
-   # 下载 APK 后直接安装
-   adb install android-service-manager-v1.0.0-universal.apk
-   ```
 
 ## 🚀 使用指南
 
@@ -128,7 +106,7 @@ assets/
 ### 开发环境
 
 - Android Studio Hedgehog 2023.1.1+
-- JDK 11+
+- JDK 17+
 - Android SDK API 35
 - Kotlin 2.1.0+
 
@@ -164,41 +142,6 @@ app/src/main/java/com/androidservice/
 ├── ui/                              # UI 组件
 └── viewmodel/                       # ViewModel 层
 ```
-
-## 🤝 贡献
-
-欢迎提交 Issue 和 Pull Request！
-
-### 贡献指南
-
-1. Fork 项目
-2. 创建功能分支: `git checkout -b feature/amazing-feature`
-3. 提交更改: `git commit -m 'Add amazing feature'`
-4. 推送分支: `git push origin feature/amazing-feature`
-5. 创建 Pull Request
-
-### 开发规范
-
-- 遵循 Kotlin 编码规范
-- 使用 Jetpack Compose 进行 UI 开发
-- 遵循 MVVM 架构模式
-- 添加适当的单元测试
-
-## 📄 许可证
-
-本项目采用 Apache 2.0 许可证 - 详见 [LICENSE](LICENSE) 文件
-
-## 🙏 致谢
-
-- [Android Jetpack](https://developer.android.com/jetpack) - 现代化 Android 开发组件
-- [Material Design](https://material.io/) - 设计系统和 UI 组件
-- [Kotlin](https://kotlinlang.org/) - 现代化编程语言
-
-## 📞 支持
-
-- 📧 邮箱: your-email@example.com
-- 🐛 问题反馈: [GitHub Issues](https://github.com/your-username/android-service/issues)
-- 💬 讨论: [GitHub Discussions](https://github.com/your-username/android-service/discussions)
 
 ---
 
