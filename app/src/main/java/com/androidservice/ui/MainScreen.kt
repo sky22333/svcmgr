@@ -4,7 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,7 +26,7 @@ import com.androidservice.viewmodel.MainViewModel
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
     object Home : Screen("home", "主页", Icons.Filled.Home)
     object Manage : Screen("manage", "管理", Icons.Filled.Build)
-    object Logs : Screen("logs", "日志", Icons.Filled.List)
+    object Logs : Screen("logs", "日志", Icons.AutoMirrored.Filled.List)
     object Config : Screen("config", "配置", Icons.Filled.Settings)
 }
 
