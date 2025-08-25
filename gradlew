@@ -200,7 +200,7 @@ fi
 
 
 # Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
-DEFAULT_JVM_OPTS='"-Xmx512m" "-Xms256m"'
+DEFAULT_JVM_OPTS="-Xmx512m -Xms256m"
 
 # Collect all arguments for the java command:
 #   * DEFAULT_JVM_OPTS, JAVA_OPTS, JAVA_OPTS, and optsEnvironmentVar are not allowed to contain shell fragments,
@@ -244,14 +244,22 @@ fi
 # double quotes. Using printf instead of echo in bash is a good practice
 # anyway.
 
-# Parse JVM options more safely
+# Set up arguments for java command
 set -- \
-        $DEFAULT_JVM_OPTS \
-        $JAVA_OPTS \
-        $GRADLE_OPTS \
-        "-Dorg.gradle.appname=$APP_BASE_NAME" \
-        -classpath "$CLASSPATH" \
-        org.gradle.wrapper.GradleWrapperMain \
-        "$@"
+    "-Dorg.gradle.appname=$APP_BASE_NAME" \
+    -classpath "$CLASSPATH" \
+    org.gradle.wrapper.GradleWrapperMain \
+    "$@"
+
+# Add JVM options to the beginning
+if [ -n "$DEFAULT_JVM_OPTS" ]; then
+    eval "set -- $DEFAULT_JVM_OPTS \"\$@\""
+fi
+if [ -n "$JAVA_OPTS" ]; then
+    eval "set -- $JAVA_OPTS \"\$@\""
+fi
+if [ -n "$GRADLE_OPTS" ]; then
+    eval "set -- $GRADLE_OPTS \"\$@\""
+fi
 
 exec "$JAVACMD" "$@"
