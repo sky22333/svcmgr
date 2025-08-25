@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Android Service Manager</string>
+    <string name="service_running">服务运行中</string>
+    <string name="service_stopped">服务已停止</string>
+    <string name="start_service">启动服务</string>
+    <string name="stop_service">停止服务</string>
+    <string name="restart_service">重启服务</string>
+    <string name="service_status">服务状态</string>
+    <string name="logs">日志输出</string>
+    <string name="configuration">配置管理</string>
+    <string name="binary_management">二进制管理</string>
+    <string name="notification_channel_name">服务通知</string>
+    <string name="notification_channel_description">显示服务运行状态</string>
+    <string name="service_notification_title">Android Service Manager</string>
+    <string name="service_notification_text">二进制进程管理服务正在运行</string>
+</resources>

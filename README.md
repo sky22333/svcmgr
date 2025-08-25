@@ -1,43 +1,213 @@
-## android-service开发任务
-角色：你是一个 Android 高级开发工程师，精通KT语言现代化开发技术栈。
-目标：开发一个现代化 Android App，用于管理跨平台二进制内核（如 xray、V2Ray frp等等），功能类似于 Windows 的 NSSM（Non-Sucking Service Manager）。首先制定一个任务列表，依次从核心功能到完整功能逐步开发，避免一次全面实现导致太复杂导致BUG太多，支持流水线自动构建和发布（不需要太复杂的流水线，只需要手动触发，支持传入tag，然后自动构建和发布到Releases即可，不要其他的，尽量简化），确保每次都能成功构建和运行，不会有BUG和错误。
-技术栈：
-  - Kotlin（谷歌官方推荐，支持空安全、协程、Flow）
-  - Jetpack Compose（声明式 UI，取代 XML 布局）
-  - Material Design 3（Material You，动态主题）
-  - Android Architecture Components（ViewModel、LiveData、Lifecycle、Navigation）
-功能需求：
-  1. 二进制管理
-     - 支持多 ABI（armeabi-v7a, arm64-v8a, x86, x86_64）二进制打包
-     - 将 assets/<abi>/binary 拷贝到 App 私有目录，并赋可执行权限
-     - 可启动、停止和监控二进制进程
-     - 支持日志输出到 Compose UI（实时更新）
-  2. 前台服务
-     - 使用 Foreground Service 确保进程在后台不易被系统杀死
-     - 返回 START_STICKY 保证系统资源允许时自动重启
-     - 可配置通知栏样式（Material Design 3）
-  3. 自动重启机制
-     - 监听二进制退出状态，自动重启
-     - 可结合 WorkManager 或 AlarmManager 定期检查服务状态
-  4. UI/UX
-     - 使用 Compose 构建动态 Material You 风格界面
-     - 实时显示服务状态（运行/停止）、日志输出、ABI 信息、启动参数
-     - UI现代化美观，拥有底部导航栏，并且避免使用卡片容器，所有元素直接显示在主容器中，避免一眼就能看出是AI开发的风格
-     - 支持深色/浅色主题跟随系统
-  5. 配置管理
-     - 支持加载/保存二进制配置文件（如 config.json）
-     - 可通过 UI 动态修改启动参数
-     - 使用 ViewModel + Flow/LiveData 管理状态
-  6. 权限与兼容性
-     - INTERNET, FOREGROUND_SERVICE 等必要权限
-     - 不同 Android 版本适配前台服务策略（8.0+）
-其他要求：
-  - 全程使用 Kotlin 协程处理异步任务（如进程输出、拷贝文件、重启服务）
-  - UI 交互响应流畅，尽量避免阻塞主线程
-  - 代码架构遵循 AAC + Compose + MVVM
-  - 重点优化性能和电量消耗
-输出：
-  - 提供完整 Kotlin 代码示例（包括 Foreground Service、ViewModel、Compose UI）
-  - 支持多 ABI 二进制管理和启动
-  - 具备自动重启机制和日志实时显示
-  - Material You 动态主题适配
+# Android Service Manager
+
+<div align="center">
+  <h3>🚀 现代化的 Android 二进制服务管理器</h3>
+  <p>基于 Kotlin + Jetpack Compose + Material Design 3 构建</p>
+  
+  [![Build Status](https://github.com/your-username/android-service/actions/workflows/build.yml/badge.svg)](https://github.com/your-username/android-service/actions)
+  [![Release](https://img.shields.io/github/v/release/your-username/android-service)](https://github.com/your-username/android-service/releases)
+  [![API](https://img.shields.io/badge/API-24%2B-brightgreen.svg?style=flat)](https://android-arsenal.com/api?level=24)
+  [![Kotlin](https://img.shields.io/badge/kotlin-2.1.0-blue.svg?logo=kotlin)](http://kotlinlang.org)
+  [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+</div>
+
+## 🎯 项目简介
+
+Android Service Manager 是一个现代化的 Android 应用，专为管理跨平台二进制内核（如 xray、V2Ray、frp 等）而设计，功能类似于 Windows 的 NSSM（Non-Sucking Service Manager）。
+
+### ✨ 核心特性
+
+- 🔧 **二进制文件管理** - 支持多 ABI 架构（ARM64, ARMv7, x86, x86_64）
+- 🚀 **进程服务管理** - 启动、停止、监控二进制进程
+- 🔄 **自动重启机制** - 智能监控进程状态，异常时自动重启
+- 📊 **实时日志显示** - 实时捕获和显示进程输出
+- ⚙️ **配置管理系统** - 支持配置导入导出、参数自定义
+- 🎨 **现代化界面** - Material Design 3 + Jetpack Compose
+- 🌙 **动态主题支持** - 支持浅色/深色模式，跟随系统设置
+- 🔒 **前台服务保护** - 确保服务在后台稳定运行
+
+## 📱 界面预览
+
+| 主页 | 管理 | 日志 | 配置 |
+|:---:|:---:|:---:|:---:|
+| 服务状态控制 | 二进制文件管理 | 实时日志显示 | 配置参数设置 |
+
+## 🏗️ 技术架构
+
+### 核心技术栈
+
+- **Kotlin** - Google 官方推荐，空安全、协程支持
+- **Jetpack Compose** - 声明式 UI 框架
+- **Material Design 3** - 现代化 UI 设计语言
+- **Android Architecture Components** - MVVM 架构组件
+- **Coroutines & Flow** - 异步编程和响应式数据流
+- **DataStore** - 现代化数据存储方案
+
+### 架构特点
+
+- **MVVM 架构** - ViewModel + LiveData/Flow 状态管理
+- **单一数据源** - 统一的状态管理和数据流
+- **协程异步** - 全面使用 Kotlin 协程处理异步任务
+- **组件化设计** - 模块化的代码结构，易于维护扩展
+
+## 📥 下载安装
+
+### 系统要求
+
+- Android 7.0 (API 24) 及以上版本
+- 支持架构: ARM64, ARMv7, x86, x86_64
+
+### 安装方式
+
+1. **从 Releases 下载**
+   - [最新版本](https://github.com/your-username/android-service/releases/latest)
+   - 选择对应架构的 APK 文件，或下载通用版本
+
+2. **手动安装**
+   ```bash
+   # 启用未知来源安装
+   # 下载 APK 后直接安装
+   adb install android-service-manager-v1.0.0-universal.apk
+   ```
+
+## 🚀 使用指南
+
+### 快速开始
+
+1. **安装应用**
+   - 下载并安装对应版本的 APK
+   - 授予应用必要的权限（通知、前台服务等）
+
+2. **准备二进制文件**
+   - 将需要管理的二进制文件按架构放入对应目录
+   - 或通过应用的管理功能导入二进制文件
+
+3. **配置服务**
+   - 在"配置"页面设置二进制文件名和启动参数
+   - 设置自动重启选项和重启策略
+
+4. **启动服务**
+   - 在"主页"点击启动按钮开始服务
+   - 在"日志"页面查看实时运行状态
+
+### 详细功能说明
+
+#### 🏠 主页面
+- **服务状态** - 实时显示服务运行状态
+- **快速控制** - 启动、停止、重启服务
+- **状态信息** - 显示进程 ID、运行时长、重启次数等
+
+#### 🔧 管理页面
+- **二进制文件列表** - 显示所有可用的二进制文件
+- **架构信息** - 显示文件架构和可执行状态
+- **文件管理** - 支持删除和重新扫描文件
+
+#### 📊 日志页面
+- **实时日志** - 实时显示进程输出和系统日志
+- **日志过滤** - 支持按级别过滤日志内容
+- **自动滚动** - 新日志自动滚动到底部
+
+#### ⚙️ 配置页面
+- **基本配置** - 设置二进制文件名和工作目录
+- **启动参数** - 添加、删除启动参数
+- **重启设置** - 配置自动重启和重启策略
+- **配置管理** - 导入导出配置文件
+
+### 二进制文件准备
+
+应用支持以下目录结构来管理不同架构的二进制文件：
+
+```
+assets/
+├── arm64-v8a/
+│   └── xray          # ARM64 架构版本
+├── armeabi-v7a/
+│   └── xray          # ARM 32位版本
+├── x86_64/
+│   └── xray          # Intel 64位版本
+└── x86/
+    └── xray          # Intel 32位版本
+```
+
+## 🛠️ 开发构建
+
+### 开发环境
+
+- Android Studio Hedgehog 2023.1.1+
+- JDK 11+
+- Android SDK API 35
+- Kotlin 2.1.0+
+
+### 构建步骤
+
+```bash
+# 克隆项目
+git clone https://github.com/your-username/android-service.git
+cd android-service
+
+# 构建 Debug 版本
+./gradlew assembleDebug
+
+# 构建 Release 版本
+./gradlew assembleRelease
+
+# 构建所有架构版本
+./gradlew build
+```
+
+### 项目结构
+
+```
+app/src/main/java/com/androidservice/
+├── MainActivity.kt                    # 主活动
+├── AndroidServiceApplication.kt       # 应用程序类
+├── data/                             # 数据模型
+├── manager/                          # 管理器类
+│   ├── BinaryManager.kt              # 二进制文件管理
+│   ├── ProcessManager.kt             # 进程管理
+│   └── ConfigManager.kt              # 配置管理
+├── service/                          # 服务类
+├── ui/                              # UI 组件
+└── viewmodel/                       # ViewModel 层
+```
+
+## 🤝 贡献
+
+欢迎提交 Issue 和 Pull Request！
+
+### 贡献指南
+
+1. Fork 项目
+2. 创建功能分支: `git checkout -b feature/amazing-feature`
+3. 提交更改: `git commit -m 'Add amazing feature'`
+4. 推送分支: `git push origin feature/amazing-feature`
+5. 创建 Pull Request
+
+### 开发规范
+
+- 遵循 Kotlin 编码规范
+- 使用 Jetpack Compose 进行 UI 开发
+- 遵循 MVVM 架构模式
+- 添加适当的单元测试
+
+## 📄 许可证
+
+本项目采用 Apache 2.0 许可证 - 详见 [LICENSE](LICENSE) 文件
+
+## 🙏 致谢
+
+- [Android Jetpack](https://developer.android.com/jetpack) - 现代化 Android 开发组件
+- [Material Design](https://material.io/) - 设计系统和 UI 组件
+- [Kotlin](https://kotlinlang.org/) - 现代化编程语言
+
+## 📞 支持
+
+- 📧 邮箱: your-email@example.com
+- 🐛 问题反馈: [GitHub Issues](https://github.com/your-username/android-service/issues)
+- 💬 讨论: [GitHub Discussions](https://github.com/your-username/android-service/discussions)
+
+---
+
+<div align="center">
+  <p>⭐ 如果这个项目对你有帮助，请给个 Star 支持一下！</p>
+</div>
