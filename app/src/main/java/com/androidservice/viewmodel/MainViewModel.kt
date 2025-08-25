@@ -33,8 +33,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _binaryList = MutableStateFlow<List<BinaryInfo>>(emptyList())
     val binaryList: StateFlow<List<BinaryInfo>> = _binaryList.asStateFlow()
 
-    private val _logs = MutableSharedFlow<LogEntry>(extraBufferCapacity = 1000)
-    val logs: SharedFlow<LogEntry> = _logs.asSharedFlow()
+    private val _logs = MutableStateFlow<List<LogEntry>>(emptyList())
+    val logs: StateFlow<List<LogEntry>> = _logs.asStateFlow()
 
     private val _currentConfig = MutableStateFlow(BinaryConfig())
     val currentConfig: StateFlow<BinaryConfig> = _currentConfig.asStateFlow()
@@ -309,13 +309,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private suspend fun addLog(level: LogLevel, message: String) {
-        _logs.emit(LogEntry(
+    private fun addLog(level: LogLevel, message: String) {
+        val newLog = LogEntry(
             timestamp = System.currentTimeMillis(),
             level = level,
             message = message,
             source = "app"
-        ))
+        )
+        _logs.value = _logs.value + newLog
     }
 
     override fun onCleared() {

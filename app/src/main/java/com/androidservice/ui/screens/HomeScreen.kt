@@ -119,7 +119,7 @@ fun ServiceStatusCard(
                     enabled = serviceStatus == ServiceStatus.RUNNING,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Icon(Icons.Default.Stop, contentDescription = null)
+                    Icon(Icons.Filled.Stop, contentDescription = null)
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(stringResource(R.string.stop_service))
                 }

@@ -22,7 +22,7 @@ import java.util.*
 fun LogsScreen(
     viewModel: MainViewModel = viewModel()
 ) {
-    val logs by viewModel.logs.collectAsStateWithLifecycle(initialValue = emptyList())
+    val logs by viewModel.logs.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     
     LaunchedEffect(logs.size) {
