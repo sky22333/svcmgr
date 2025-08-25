@@ -58,7 +58,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             
             viewModelScope.launch {
                 boundService?.logs?.collect { logEntry ->
-                    _logs.emit(logEntry)
+                    _logs.value = _logs.value + logEntry
                 }
             }
         }
