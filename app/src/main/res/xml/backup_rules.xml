@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Exclude configuration files that contain sensitive data -->
+    <exclude domain="file" path="config.json" />
+    <exclude domain="file" path="binaries/" />
+</full-backup-content>

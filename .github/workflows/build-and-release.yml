@@ -1,0 +1,81 @@
+name: 正式版本构建
+
+# 新增tag触发
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      # 检出代码
+      - uses: actions/checkout@v4
+
+      # 安装 JDK 17 并缓存 Gradle
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      # 自动生成 keystore
+      - name: Generate keystore for CI
+        run: |
+          keytool -genkeypair \
+            -alias ci-key \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -keystore keystore.jks \
+            -storepass 123456 \
+            -keypass 123456 \
+            -dname "CN=CI, OU=Dev, O=Company, L=City, S=State, C=CN"
+
+      # 生成 keystore.properties
+      - name: Generate keystore.properties
+        run: |
+          echo "storeFile=keystore.jks" > keystore.properties
+          echo "storePassword=123456" >> keystore.properties
+          echo "keyAlias=ci-key" >> keystore.properties
+          echo "keyPassword=123456" >> keystore.properties
+
+      # 授权 gradlew 可执行
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      # 构建 release APK
+      - name: Build release APK
+        run: ./gradlew assembleRelease
+        env:
+          KEY_ALIAS: ci-key
+          KEY_PASSWORD: 123456
+          STORE_FILE: keystore.jks
+          STORE_PASSWORD: 123456
+
+      # 上传 APK artifact
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frp-Android
+          path: app/build/outputs/apk/release/*.apk
+          retention-days: 7
+
+      # 创建 GitHub Release
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: svcmgr ${{ github.ref_name }}
+          files: app/build/outputs/apk/release/*.apk
+          draft: false
+          prerelease: false
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
