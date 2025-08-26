@@ -108,5 +108,4 @@ jobs:
           - 构建编号: ${{ github.run_number }}
           - 构建时间: ${{ env.BUILD_TIME }} (Asia/Shanghai)
         draft: false
-        prerelease: true
         files: ${{ steps.get_apk.outputs.apk_path }}

@@ -10,12 +10,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Help
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -63,7 +65,6 @@ fun ConfigScreen(
         }
     }
     
-    // 在用户展开下拉框时才加载内核列表
     LaunchedEffect(expanded) {
         if (expanded && availableBinaryNames.isEmpty()) {
             viewModel.loadAvailableBinaryNames()
@@ -420,6 +421,29 @@ fun ConfigScreen(
                 content = helpContent,
                 onDismiss = { showHelpDialog = false }
             )
+        }
+        
+        val uriHandler = LocalUriHandler.current
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            IconButton(
+                 onClick = {
+                     // 项目地址
+                     uriHandler.openUri("https://github.com/sky22333/svcmgr")
+                 },
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Code,
+                    contentDescription = "GitHub",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
         }
         
         // 底部间距，确保内容不被导航栏遮挡
