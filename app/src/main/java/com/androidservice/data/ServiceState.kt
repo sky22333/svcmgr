@@ -28,6 +28,7 @@ data class BinaryInfo(
 )
 
 data class LogEntry(
+    val id: Long = 0,
     val timestamp: Long,
     val level: LogLevel,
     val message: String,

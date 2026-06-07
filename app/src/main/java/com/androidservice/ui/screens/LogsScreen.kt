@@ -75,7 +75,7 @@ fun LogsScreen(viewModel: MainViewModel = viewModel()) {
                         contentPadding = PaddingValues(14.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        items(logs, key = { it.timestamp.toString() + it.message }) { entry ->
+                        items(logs, key = { it.id }) { entry ->
                             LogEntryItem(entry, timeFormatter)
                         }
                     }

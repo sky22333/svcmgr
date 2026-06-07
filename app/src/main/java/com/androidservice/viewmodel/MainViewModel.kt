@@ -47,6 +47,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var logJob: Job? = null
 
     private val logDeque = ArrayDeque<LogEntry>(MAX_LOG_ENTRIES)
+    private var nextLogId = 0L
     private var pendingLogUpdate = false
 
     private val _editingFileName = MutableStateFlow<String?>(null)
@@ -283,7 +284,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         logJob = viewModelScope.launch {
-            service.logs.collect { log -> createAndEmitLog(log.level, log.message, log.source) }
+            service.logs.collect { log -> appendLog(log) }
         }
     }
 
@@ -316,20 +317,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun addLog(level: LogLevel, message: String) {
-        createAndEmitLog(level, message, "app")
+        appendLog(
+            LogEntry(
+                timestamp = System.currentTimeMillis(),
+                level = level,
+                message = message,
+                source = "app"
+            )
+        )
     }
 
-    private fun createAndEmitLog(level: LogLevel, message: String, source: String) {
+    private fun appendLog(log: LogEntry) {
         synchronized(logDeque) {
             if (logDeque.size >= MAX_LOG_ENTRIES) logDeque.removeFirst()
-            logDeque.addLast(
-                LogEntry(
-                    timestamp = System.currentTimeMillis(),
-                    level = level,
-                    message = message,
-                    source = source
-                )
-            )
+            logDeque.addLast(log.copy(id = nextLogId++))
 
             if (!pendingLogUpdate) {
                 pendingLogUpdate = true
