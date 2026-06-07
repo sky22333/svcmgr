@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -51,8 +50,7 @@ fun LogsScreen(viewModel: MainViewModel = viewModel()) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 18.dp)
-            .navigationBarsPadding(),
+            .padding(horizontal = 18.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Spacer(Modifier.height(16.dp))
@@ -82,7 +80,6 @@ fun LogsScreen(viewModel: MainViewModel = viewModel()) {
                 }
             }
         }
-        Spacer(Modifier.height(18.dp))
     }
 }
 
