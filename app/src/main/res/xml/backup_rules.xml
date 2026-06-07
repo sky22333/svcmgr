@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- 排除可能包含敏感信息的运行配置 -->
+    <exclude domain="file" path="config.json" />
+</full-backup-content>

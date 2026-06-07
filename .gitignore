@@ -1,0 +1,39 @@
+# Android / Gradle
+.gradle/
+**/build/
+local.properties
+gradle/gradle-daemon-jvm.properties
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# Build outputs
+*.apk
+*.aab
+*.ap_
+*.aar
+*.dex
+
+# Native / symbols
+*.so.dbg
+*.dSYM/
+
+# Logs and diagnostics
+*.log
+*.hprof
+hs_err_pid*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local secrets
+*.jks
+*.keystore
+*.p12
+keystore.properties
