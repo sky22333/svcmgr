@@ -70,7 +70,7 @@ go build \
   -trimpath \
   -tags "osusergo netgo" \
   -ldflags "-s -w -X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME}" \
-  -o cloudflared-android-arm64 \
+  -o libcloudflared \
   ./cmd/cloudflared
 ```
 
