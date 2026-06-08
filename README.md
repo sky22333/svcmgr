@@ -2,7 +2,7 @@
 
 现代化 Android 二进制服务管理器。
 
-`svcmgr` 用于管理打包在应用内的 ARM64 二进制程序，例如 `openlist`、`frpc`、`xray` 等。应用提供启动、停止、运行状态、配置文件编辑、配置备份和实时日志查看能力。
+`svcmgr` 用于管理打包在应用内的 ARM64 二进制程序，例如 `openlist`、`frpc`、`cloudflared` 等。应用提供启动、停止、运行状态、配置文件编辑、配置备份和实时日志查看能力。
 
 ## 功能
 
@@ -25,7 +25,7 @@ app/src/main/jniLibs/arm64-v8a/
 ```text
 libfrpc.so
 libopenlist.so
-libxray.so
+libcloudflared.so
 ```
 
 应用会显示为：
@@ -33,7 +33,7 @@ libxray.so
 ```text
 frpc
 openlist
-xray
+cloudflared
 ```
 
 然后重新编译
@@ -48,6 +48,33 @@ app/src/main/java/com/androidservice/
   ui/          Compose UI 与主题
   viewmodel/   应用状态中心
 ```
+
+## 内核来源
+
+cloudflared：
+```
+# 下载源码
+git clone https://github.com/cloudflare/cloudflared.git
+
+# 交叉编译环境变量
+export GOOS=android
+export GOARCH=arm64
+export CGO_ENABLED=0
+
+# 获取版本号和构建时间
+VERSION="$(git describe --tags --always --match '[0-9]*.*.*')"
+BUILD_TIME="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+
+# 构建
+go build \
+  -trimpath \
+  -tags "osusergo netgo" \
+  -ldflags "-s -w -X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME}" \
+  -o cloudflared-android-arm64 \
+  ./cmd/cloudflared
+```
+
+其余内核均来自上游官方的安卓版本
 
 ## 免责声明
 
