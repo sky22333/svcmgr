@@ -101,6 +101,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.gson)
+    implementation(libs.material.kolor)
 
     debugImplementation(libs.androidx.ui.tooling)
 }

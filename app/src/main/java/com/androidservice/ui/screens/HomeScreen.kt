@@ -10,22 +10,33 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -40,16 +51,23 @@ import com.androidservice.ui.SectionTitle
 import com.androidservice.ui.SoftDivider
 import com.androidservice.ui.StatusDot
 import com.androidservice.ui.rememberDateTimeFormatter
+import com.androidservice.ui.theme.ThemeSeed
+import com.androidservice.ui.theme.ThemeSeedOptions
 import com.androidservice.viewmodel.MainViewModel
 import java.util.Date
 
 @Composable
-fun HomeScreen(viewModel: MainViewModel = viewModel()) {
+fun HomeScreen(
+    viewModel: MainViewModel = viewModel(),
+    seedColor: Color,
+    onSeedColorChange: (Color) -> Unit
+) {
     val serviceState by viewModel.serviceState.collectAsStateWithLifecycle()
     val serviceStatus by viewModel.serviceStatus.collectAsStateWithLifecycle()
     val logCount by viewModel.logCount.collectAsStateWithLifecycle()
     val config by viewModel.currentConfig.collectAsStateWithLifecycle()
     val timeFormatter = rememberDateTimeFormatter("yyyy-MM-dd HH:mm:ss")
+    var showSeedDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -60,10 +78,20 @@ fun HomeScreen(viewModel: MainViewModel = viewModel()) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Spacer(Modifier.height(16.dp))
-        PageHeader(
-            title = "svcmgr",
-            subtitle = "管理本机打包的二进制服务、配置文件与运行日志"
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top
+        ) {
+            PageHeader(
+                title = "svcmgr",
+                subtitle = "管理本机打包的二进制服务、配置文件与运行日志",
+                modifier = Modifier.weight(1f)
+            )
+            IconButton(onClick = { showSeedDialog = true }) {
+                Icon(Icons.Filled.Settings, contentDescription = "主题配色")
+            }
+        }
 
         ServicePanel(
             status = serviceStatus,
@@ -92,6 +120,56 @@ fun HomeScreen(viewModel: MainViewModel = viewModel()) {
 
         Spacer(Modifier.height(22.dp))
     }
+
+    if (showSeedDialog) {
+        ThemeSeedDialog(
+            selectedColor = seedColor,
+            onSeedSelected = {
+                onSeedColorChange(it.color)
+                showSeedDialog = false
+            },
+            onDismiss = { showSeedDialog = false }
+        )
+    }
+}
+
+@Composable
+private fun ThemeSeedDialog(
+    selectedColor: Color,
+    onSeedSelected: (ThemeSeed) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("主题配色") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                ThemeSeedOptions.forEach { seed ->
+                    TextButton(
+                        onClick = { onSeedSelected(seed) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Spacer(
+                            modifier = Modifier
+                                .size(if (seed.color == selectedColor) 18.dp else 14.dp)
+                                .background(seed.color, CircleShape)
+                        )
+                        Text(
+                            text = seed.name,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(start = 12.dp)
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("完成")
+            }
+        }
+    )
 }
 
 @Composable

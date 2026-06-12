@@ -23,6 +23,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -49,7 +50,10 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
 }
 
 @Composable
-fun MainScreen() {
+fun MainScreen(
+    seedColor: Color,
+    onSeedColorChange: (Color) -> Unit
+) {
     val viewModel: MainViewModel = viewModel()
     val navController = rememberNavController()
     val items = listOf(Screen.Home, Screen.Manage, Screen.Logs, Screen.Config)
@@ -120,6 +124,8 @@ fun MainScreen() {
         MainNavHost(
             navController = navController,
             viewModel = viewModel,
+            seedColor = seedColor,
+            onSeedColorChange = onSeedColorChange,
             modifier = Modifier
                 .padding(innerPadding)
                 .fillMaxSize()
@@ -131,6 +137,8 @@ fun MainScreen() {
 fun MainNavHost(
     navController: NavHostController,
     viewModel: MainViewModel,
+    seedColor: Color,
+    onSeedColorChange: (Color) -> Unit,
     modifier: Modifier = Modifier
 ) {
     NavHost(
@@ -139,7 +147,11 @@ fun MainNavHost(
         modifier = modifier
     ) {
         composable(Screen.Home.route) {
-            HomeScreen(viewModel = viewModel)
+            HomeScreen(
+                viewModel = viewModel,
+                seedColor = seedColor,
+                onSeedColorChange = onSeedColorChange
+            )
         }
         composable(Screen.Manage.route) {
             ManageScreen(
