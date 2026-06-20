@@ -13,9 +13,14 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 
 echo "下载 libbox.aar..."
 LIBBOX_URL="$(curl -fsSL "https://api.github.com/repos/sky22333/proxy/releases/latest" \
-  | grep 'libbox.aar' \
+  | grep '"browser_download_url"' \
+  | grep 'libbox\.aar' \
   | head -1 \
   | cut -d '"' -f 4)"
+if [[ -z "$LIBBOX_URL" || "$LIBBOX_URL" != http* ]]; then
+  echo "无法获取 libbox.aar 下载地址" >&2
+  exit 1
+fi
 curl -fL "$LIBBOX_URL" -o "$LIBS_DIR/libbox.aar"
 echo "libbox.aar 已放入：$LIBS_DIR"
 

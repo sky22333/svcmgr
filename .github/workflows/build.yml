@@ -1,9 +1,6 @@
 name: 安卓构建发布
 
 on:
-  push:
-    paths:
-      - "app/**"
   workflow_dispatch:
     inputs:
       tag:
