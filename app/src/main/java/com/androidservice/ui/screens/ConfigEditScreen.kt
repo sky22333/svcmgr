@@ -40,6 +40,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontFamily
@@ -65,6 +66,7 @@ fun ConfigEditScreen(
     viewModel: MainViewModel = viewModel()
 ) {
     val clipboard = LocalClipboard.current
+    val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val refreshingRemoteFiles by viewModel.refreshingRemoteFiles.collectAsStateWithLifecycle()
@@ -120,10 +122,13 @@ fun ConfigEditScreen(
                                         viewModel = viewModel,
                                         snackbarHostState = snackbarHostState,
                                         onSyncing = { isSyncing = it },
-                                        onContentUpdated = { content ->
-                                            contentState = TextFieldValue(content, TextRange.Zero)
-                                        },
-                                    )
+                                    onContentUpdated = { content ->
+                                        contentState = TextFieldValue(content, TextRange.Zero)
+                                    },
+                                    formatRefreshFailure = { message ->
+                                        context.getString(R.string.config_remote_refresh_failed, message)
+                                    },
+                                )
                                 }
                             },
                             enabled = !isSaving && !isRemoteRefreshing,
@@ -277,6 +282,7 @@ private suspend fun syncRemoteConfig(
     snackbarHostState: SnackbarHostState,
     onSyncing: (Boolean) -> Unit,
     onContentUpdated: (String) -> Unit,
+    formatRefreshFailure: (String) -> String,
 ) {
     val trimmedUrl = remoteUrl.trim()
     if (trimmedUrl.isBlank()) return
@@ -326,7 +332,7 @@ private suspend fun syncRemoteConfig(
             }
         }
         is RemoteConfigRefreshResult.Failure -> {
-            snackbarHostState.showSnackbar(result.message)
+            snackbarHostState.showSnackbar(formatRefreshFailure(result.message))
         }
     }
 }

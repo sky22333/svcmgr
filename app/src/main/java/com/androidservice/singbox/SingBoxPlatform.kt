@@ -68,12 +68,16 @@ open class SingBoxPlatform : PlatformInterface {
     }
 
     override fun getInterfaces(): NetworkInterfaceIterator {
-        val networks = AndroidServiceApplication.connectivity.allNetworks
+        val connectivity = AndroidServiceApplication.connectivity
         val networkInterfaces = NetworkInterface.getNetworkInterfaces().toList()
         val interfaces = mutableListOf<LibboxNetworkInterface>()
-        for (network in networks) {
-            val linkProperties = AndroidServiceApplication.connectivity.getLinkProperties(network) ?: continue
-            val networkCapabilities = AndroidServiceApplication.connectivity.getNetworkCapabilities(network) ?: continue
+        for (tracked in NetworkTracker.trackedNetworks()) {
+            val linkProperties = tracked.linkProperties
+                ?: connectivity.getLinkProperties(tracked.network)
+                ?: continue
+            val networkCapabilities = tracked.capabilities
+                ?: connectivity.getNetworkCapabilities(tracked.network)
+                ?: continue
             val networkInterface = networkInterfaces.find { it.name == linkProperties.interfaceName } ?: continue
             val boxInterface = LibboxNetworkInterface().apply {
                 name = linkProperties.interfaceName

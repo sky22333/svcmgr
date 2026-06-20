@@ -39,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -114,9 +115,11 @@ private fun ConfigFileRow(
     snackbarHostState: SnackbarHostState,
 ) {
     val clipboard = LocalClipboard.current
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var showDeleteDialog by remember { mutableStateOf(false) }
     val refreshSuccessMessage = stringResource(R.string.config_remote_refresh_success)
+    val refreshContentDescription = stringResource(R.string.config_remote_refresh)
 
     Card(
         modifier = Modifier
@@ -171,7 +174,12 @@ private fun ConfigFileRow(
                                     snackbarHostState.showSnackbar(refreshSuccessMessage)
                                 }
                                 is RemoteConfigRefreshResult.Failure -> {
-                                    snackbarHostState.showSnackbar(result.message)
+                                    snackbarHostState.showSnackbar(
+                                        context.getString(
+                                            R.string.config_remote_refresh_failed,
+                                            result.message,
+                                        ),
+                                    )
                                 }
                             }
                         }
@@ -187,7 +195,7 @@ private fun ConfigFileRow(
                     } else {
                         Icon(
                             Icons.Filled.Sync,
-                            contentDescription = stringResource(R.string.config_remote_refresh),
+                            contentDescription = refreshContentDescription,
                             tint = MaterialTheme.colorScheme.primary,
                         )
                     }

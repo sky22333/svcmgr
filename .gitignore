@@ -17,6 +17,7 @@ gradle/gradle-daemon-jvm.properties
 *.ap_
 *.aar
 *.dex
+*.so
 
 # Native / symbols
 *.so.dbg

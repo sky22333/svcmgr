@@ -1,6 +1,5 @@
 package com.androidservice.singbox
 
-import android.annotation.TargetApi
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -9,7 +8,6 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import com.androidservice.AndroidServiceApplication
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -20,9 +18,6 @@ import kotlinx.coroutines.runBlocking
 object DefaultNetworkListener {
     private sealed class NetworkMessage {
         class Start(val key: Any, val listener: (Network?) -> Unit) : NetworkMessage()
-        class Get : NetworkMessage() {
-            val response = CompletableDeferred<Network>()
-        }
         class Stop(val key: Any) : NetworkMessage()
         class Put(val network: Network) : NetworkMessage()
         class Update(val network: Network) : NetworkMessage()
@@ -33,21 +28,12 @@ object DefaultNetworkListener {
     private val networkActor = GlobalScope.actor<NetworkMessage>(Dispatchers.Unconfined) {
         val listeners = mutableMapOf<Any, (Network?) -> Unit>()
         var network: Network? = null
-        val pendingRequests = arrayListOf<NetworkMessage.Get>()
         for (message in channel) {
             when (message) {
                 is NetworkMessage.Start -> {
                     if (listeners.isEmpty()) register()
                     listeners[message.key] = message.listener
                     if (network != null) message.listener(network)
-                }
-                is NetworkMessage.Get -> {
-                    check(listeners.isNotEmpty()) { "Getting network without any listeners is not supported" }
-                    if (network == null) {
-                        pendingRequests += message
-                    } else {
-                        message.response.complete(network)
-                    }
                 }
                 is NetworkMessage.Stop -> {
                     if (listeners.isNotEmpty() && listeners.remove(message.key) != null && listeners.isEmpty()) {
@@ -57,8 +43,6 @@ object DefaultNetworkListener {
                 }
                 is NetworkMessage.Put -> {
                     network = message.network
-                    pendingRequests.forEach { it.response.complete(message.network) }
-                    pendingRequests.clear()
                     listeners.values.forEach { it(network) }
                 }
                 is NetworkMessage.Update -> {
@@ -80,17 +64,6 @@ object DefaultNetworkListener {
         networkActor.send(NetworkMessage.Start(key, listener))
     }
 
-    suspend fun get(): Network {
-        if (fallback) {
-            return AndroidServiceApplication.connectivity.activeNetwork
-                ?: error("missing default network")
-        }
-        return NetworkMessage.Get().run {
-            networkActor.send(this)
-            response.await()
-        }
-    }
-
     suspend fun stop(key: Any) {
         networkActor.send(NetworkMessage.Stop(key))
     }
@@ -109,39 +82,23 @@ object DefaultNetworkListener {
         }
     }
 
-    private var fallback = false
-    private val request = NetworkRequest.Builder().apply {
-        addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-        addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_RESTRICTED)
-        if (Build.VERSION.SDK_INT == 23) {
-            removeCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-            removeCapability(NetworkCapabilities.NET_CAPABILITY_CAPTIVE_PORTAL)
-        }
-    }.build()
+    private val request = NetworkRequest.Builder()
+        .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_RESTRICTED)
+        .build()
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private fun register() {
         val connectivity = AndroidServiceApplication.connectivity
         when {
-            Build.VERSION.SDK_INT >= 31 -> {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
                 connectivity.registerBestMatchingNetworkCallback(request, Callback, mainHandler)
             }
-            Build.VERSION.SDK_INT >= 28 -> {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.P -> {
                 connectivity.requestNetwork(request, Callback, mainHandler)
             }
-            Build.VERSION.SDK_INT >= 26 -> {
-                connectivity.registerDefaultNetworkCallback(Callback, mainHandler)
-            }
-            Build.VERSION.SDK_INT >= 24 -> {
-                connectivity.registerDefaultNetworkCallback(Callback)
-            }
             else -> {
-                try {
-                    fallback = false
-                    connectivity.requestNetwork(request, Callback)
-                } catch (_: RuntimeException) {
-                    fallback = true
-                }
+                connectivity.registerDefaultNetworkCallback(Callback, mainHandler)
             }
         }
     }

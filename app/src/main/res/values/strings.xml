@@ -23,6 +23,6 @@
     <string name="config_remote_url_description">可选。设置后可点击同步图标从网络拉取最新内容。</string>
     <string name="config_remote_refresh">从远程 URL 更新配置</string>
     <string name="config_remote_refresh_success">远程配置已更新</string>
-    <string name="config_remote_refresh_failed">远程配置更新失败</string>
+    <string name="config_remote_refresh_failed">远程配置更新失败：%1$s</string>
     <string name="action_stop">停止</string>
 </resources>

@@ -1,7 +1,6 @@
 package com.androidservice.singbox
 
 import android.net.Network
-import android.os.Build
 import com.androidservice.AndroidServiceApplication
 import io.nekohasekai.libbox.InterfaceUpdateListener
 import java.net.NetworkInterface
@@ -11,19 +10,18 @@ object DefaultNetworkMonitor {
     private var listener: InterfaceUpdateListener? = null
 
     suspend fun start() {
+        val connectivity = AndroidServiceApplication.connectivity
+        NetworkTracker.start(connectivity)
         DefaultNetworkListener.start(this) { network ->
             defaultNetwork = network
             checkDefaultInterfaceUpdate(network)
         }
-        defaultNetwork = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            AndroidServiceApplication.connectivity.activeNetwork
-        } else {
-            DefaultNetworkListener.get()
-        }
+        defaultNetwork = connectivity.activeNetwork
     }
 
     suspend fun stop() {
         DefaultNetworkListener.stop(this)
+        NetworkTracker.stop(AndroidServiceApplication.connectivity)
     }
 
     fun setListener(listener: InterfaceUpdateListener?) {
