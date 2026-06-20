@@ -39,7 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboard
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -115,11 +115,14 @@ private fun ConfigFileRow(
     snackbarHostState: SnackbarHostState,
 ) {
     val clipboard = LocalClipboard.current
-    val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     var showDeleteDialog by remember { mutableStateOf(false) }
     val refreshSuccessMessage = stringResource(R.string.config_remote_refresh_success)
     val refreshContentDescription = stringResource(R.string.config_remote_refresh)
+    val formatRefreshFailure: (String) -> String = { message ->
+        resources.getString(R.string.config_remote_refresh_failed, message)
+    }
 
     Card(
         modifier = Modifier
@@ -174,12 +177,7 @@ private fun ConfigFileRow(
                                     snackbarHostState.showSnackbar(refreshSuccessMessage)
                                 }
                                 is RemoteConfigRefreshResult.Failure -> {
-                                    snackbarHostState.showSnackbar(
-                                        context.getString(
-                                            R.string.config_remote_refresh_failed,
-                                            result.message,
-                                        ),
-                                    )
+                                    snackbarHostState.showSnackbar(formatRefreshFailure(result.message))
                                 }
                             }
                         }

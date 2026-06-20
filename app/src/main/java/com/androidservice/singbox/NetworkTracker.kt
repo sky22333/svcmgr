@@ -39,16 +39,7 @@ object NetworkTracker {
             }
         }
 
-        val request = NetworkRequest.Builder()
-            .clearCapabilities()
-            .apply {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    setIncludeOtherUidNetworks(true)
-                }
-            }
-            .build()
-
-        connectivity.registerNetworkCallback(request, callback)
+        connectivity.registerNetworkCallback(buildNetworkTrackerRequest(), callback)
         networkCallback = callback
     }
 
@@ -60,4 +51,18 @@ object NetworkTracker {
     }
 
     fun trackedNetworks(): Collection<TrackedNetwork> = tracked.values
+
+    private fun buildNetworkTrackerRequest(): NetworkRequest {
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            NetworkRequest.Builder().clearCapabilities()
+        } else {
+            NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_RESTRICTED)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            builder.setIncludeOtherUidNetworks(true)
+        }
+        return builder.build()
+    }
 }
