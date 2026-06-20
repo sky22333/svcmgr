@@ -5,6 +5,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.net.VpnService
 import android.os.IBinder
 import android.os.PowerManager
 import android.provider.Settings
@@ -20,11 +21,16 @@ import com.androidservice.data.LogLevel
 import com.androidservice.data.ServiceState
 import com.androidservice.data.ServiceStatus
 import com.androidservice.manager.AppConfigManager
+import com.androidservice.manager.RemoteConfigRefreshResult
 import com.androidservice.manager.BinaryManager
 import com.androidservice.manager.ConfigManager
 import com.androidservice.service.BinaryProcessService
+import com.androidservice.service.SingBoxProxyService
 import com.androidservice.service.SingBoxVpnService
+import com.androidservice.singbox.SingBoxConfigInspector
 import com.androidservice.singbox.SingBoxConstants
+import com.androidservice.singbox.SingBoxRunMode
+import com.androidservice.singbox.SingBoxServiceContract
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -47,9 +53,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val appConfigManager = AppConfigManager(context)
 
     private var boundBinaryService: BinaryProcessService? = null
-    private var boundSingBoxService: SingBoxVpnService? = null
+    private var boundSingBoxVpnService: SingBoxVpnService? = null
+    private var boundSingBoxProxyService: SingBoxProxyService? = null
     private var binaryBound = false
-    private var singBoxBound = false
+    private var singBoxVpnBound = false
+    private var singBoxProxyBound = false
     private var stateJob: Job? = null
     private var logJob: Job? = null
     private var activeServiceKind: ServiceKind? = null
@@ -85,6 +93,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _availableBinaryNames = MutableStateFlow<List<String>>(emptyList())
     val availableBinaryNames: StateFlow<List<String>> = _availableBinaryNames.asStateFlow()
 
+    private val _singBoxRunMode = MutableStateFlow<SingBoxRunMode?>(null)
+    val singBoxRunMode: StateFlow<SingBoxRunMode?> = _singBoxRunMode.asStateFlow()
+
+    private val _refreshingRemoteFiles = MutableStateFlow<Set<String>>(emptySet())
+    val refreshingRemoteFiles: StateFlow<Set<String>> = _refreshingRemoteFiles.asStateFlow()
+
     private val _vpnPermissionIntent = MutableSharedFlow<Intent>(extraBufferCapacity = 1)
     val vpnPermissionIntent: SharedFlow<Intent> = _vpnPermissionIntent.asSharedFlow()
 
@@ -102,17 +116,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private val singBoxServiceConnection = object : ServiceConnection {
+    private val singBoxVpnServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
-            boundSingBoxService = (service as SingBoxVpnService.SingBoxBinder).getService()
-            singBoxBound = true
-            if (activeServiceKind == ServiceKind.SINGBOX) observeActiveService()
+            boundSingBoxVpnService = (service as SingBoxVpnService.SingBoxBinder).getService()
+            singBoxVpnBound = true
+            if (activeServiceKind == ServiceKind.SINGBOX_VPN) observeActiveService()
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
-            if (activeServiceKind == ServiceKind.SINGBOX) clearServiceObservation(ServiceStatus.STOPPED)
-            boundSingBoxService = null
-            singBoxBound = false
+            if (activeServiceKind == ServiceKind.SINGBOX_VPN) clearServiceObservation(ServiceStatus.STOPPED)
+            boundSingBoxVpnService = null
+            singBoxVpnBound = false
+        }
+    }
+
+    private val singBoxProxyServiceConnection = object : ServiceConnection {
+        override fun onServiceConnected(className: ComponentName, service: IBinder) {
+            boundSingBoxProxyService = (service as SingBoxProxyService.SingBoxBinder).getService()
+            singBoxProxyBound = true
+            if (activeServiceKind == ServiceKind.SINGBOX_PROXY) observeActiveService()
+        }
+
+        override fun onServiceDisconnected(name: ComponentName) {
+            if (activeServiceKind == ServiceKind.SINGBOX_PROXY) clearServiceObservation(ServiceStatus.STOPPED)
+            boundSingBoxProxyService = null
+            singBoxProxyBound = false
         }
     }
 
@@ -140,7 +168,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        if (SingBoxVpnService.usesSingBox(config)) {
+        if (SingBoxServiceContract.usesSingBox(config)) {
             startSingBoxService(config)
         } else {
             startBinaryService(config)
@@ -149,8 +177,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onVpnPermissionGranted() {
         val config = _currentConfig.value
-        if (!SingBoxVpnService.usesSingBox(config)) return
-        launchSingBoxService(config)
+        if (!SingBoxServiceContract.usesSingBox(config)) return
+        launchSingBoxVpn(config)
     }
 
     fun onVpnPermissionDenied() {
@@ -166,13 +194,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         _serviceStatus.value = ServiceStatus.STOPPING
         when (activeServiceKind) {
-            ServiceKind.SINGBOX -> {
+            ServiceKind.SINGBOX_VPN -> {
                 context.startService(
                     Intent(context, SingBoxVpnService::class.java).apply {
-                        action = SingBoxVpnService.ACTION_STOP
+                        action = SingBoxServiceContract.ACTION_STOP
                     },
                 )
                 addLog(LogLevel.INFO, "正在停止 sing-box VPN...")
+            }
+            ServiceKind.SINGBOX_PROXY -> {
+                context.startService(
+                    Intent(context, SingBoxProxyService::class.java).apply {
+                        action = SingBoxServiceContract.ACTION_STOP
+                    },
+                )
+                addLog(LogLevel.INFO, "正在停止 sing-box 代理...")
             }
             ServiceKind.BINARY, null -> {
                 context.startService(
@@ -187,6 +223,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateConfig(config: BinaryConfig) {
         _currentConfig.value = config
+        refreshSingBoxRunMode()
         viewModelScope.launch {
             runCatching { configManager.saveConfig(config) }
                 .onFailure { addLog(LogLevel.ERROR, "保存配置失败: ${it.message}") }
@@ -214,6 +251,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             _currentConfig.value = config
             configManager.saveConfig(config)
+            refreshSingBoxRunMode()
             addLog(LogLevel.INFO, "配置已加载")
         }
     }
@@ -235,6 +273,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             configManager.clearConfig()
             _currentConfig.value = BinaryConfig()
+            _singBoxRunMode.value = null
             addLog(LogLevel.INFO, "配置已重置")
         }
     }
@@ -251,6 +290,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun refreshSingBoxRunMode() {
+        viewModelScope.launch {
+            val config = _currentConfig.value
+            if (!SingBoxServiceContract.usesSingBox(config) || config.configFileName.isBlank()) {
+                _singBoxRunMode.value = null
+                return@launch
+            }
+            val content = withContext(Dispatchers.IO) {
+                appConfigManager.loadConfigFile(config.configFileName)?.content
+            }
+            _singBoxRunMode.value = when {
+                content.isNullOrBlank() -> null
+                SingBoxConfigInspector.hasTunInbound(content) -> SingBoxRunMode.VPN
+                else -> SingBoxRunMode.PROXY
+            }
+        }
+    }
+
     fun deleteAppConfigFile(fileName: String) {
         if (fileName.isBlank()) {
             addLog(LogLevel.ERROR, "文件名不能为空")
@@ -262,6 +319,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (success) {
                 _appConfigFiles.value = _appConfigFiles.value.filterNot { it.fileName == fileName }
                 addLog(LogLevel.INFO, "已删除配置文件: $fileName")
+                refreshSingBoxRunMode()
             } else {
                 addLog(LogLevel.ERROR, "删除配置文件失败: $fileName")
             }
@@ -274,6 +332,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             withContext(Dispatchers.Main) {
                 if (success) {
                     refreshAppConfigFiles()
+                    refreshSingBoxRunMode()
                     addLog(LogLevel.INFO, "已保存配置文件: ${appConfigFile.fileName}")
                 } else {
                     addLog(LogLevel.ERROR, "保存配置文件失败: ${appConfigFile.fileName}")
@@ -286,6 +345,43 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     suspend fun loadAppConfigFile(fileName: String): AppConfigFile? {
         return appConfigManager.loadConfigFile(fileName).also {
             if (it == null) addLog(LogLevel.WARN, "配置文件不存在: $fileName")
+        }
+    }
+
+    suspend fun refreshRemoteConfigFile(fileName: String): RemoteConfigRefreshResult {
+        val safeName = fileName.trim()
+        if (safeName.isBlank()) {
+            return RemoteConfigRefreshResult.Failure("文件名不能为空")
+        }
+
+        _refreshingRemoteFiles.value += safeName
+        return try {
+            appConfigManager.refreshFromRemote(safeName).also { result ->
+                when (result) {
+                    is RemoteConfigRefreshResult.Success -> {
+                        refreshAppConfigFiles()
+                        refreshSingBoxRunMode()
+                        addLog(LogLevel.INFO, "已更新远程配置: $safeName")
+                    }
+                    is RemoteConfigRefreshResult.Failure -> {
+                        addLog(LogLevel.ERROR, "更新远程配置失败: ${result.message}")
+                    }
+                }
+            }
+        } finally {
+            _refreshingRemoteFiles.value -= safeName
+        }
+    }
+
+    suspend fun fetchRemoteConfigPreview(url: String): RemoteConfigRefreshResult {
+        val trimmedUrl = url.trim()
+        if (trimmedUrl.isBlank()) {
+            return RemoteConfigRefreshResult.Failure("远程 URL 不能为空")
+        }
+        return appConfigManager.fetchRemotePreview(trimmedUrl).also { result ->
+            if (result is RemoteConfigRefreshResult.Failure) {
+                addLog(LogLevel.ERROR, "拉取远程配置失败: ${result.message}")
+            }
         }
     }
 
@@ -319,25 +415,51 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        val prepareIntent = SingBoxVpnService.prepareIntent(context)
-        if (prepareIntent != null) {
-            _serviceStatus.value = ServiceStatus.STARTING
-            viewModelScope.launch { _vpnPermissionIntent.emit(prepareIntent) }
-            return
-        }
+        viewModelScope.launch {
+            val content = withContext(Dispatchers.IO) {
+                appConfigManager.loadConfigFile(config.configFileName)?.content
+            }
+            if (content.isNullOrBlank()) {
+                addLog(LogLevel.ERROR, "配置文件不存在或为空: ${config.configFileName}")
+                _serviceStatus.value = ServiceStatus.ERROR
+                return@launch
+            }
 
-        launchSingBoxService(config)
+            if (SingBoxConfigInspector.hasTunInbound(content)) {
+                val prepareIntent = VpnService.prepare(context)
+                if (prepareIntent != null) {
+                    _serviceStatus.value = ServiceStatus.STARTING
+                    _vpnPermissionIntent.emit(prepareIntent)
+                    return@launch
+                }
+                launchSingBoxVpn(config)
+            } else {
+                launchSingBoxProxy(config)
+            }
+        }
     }
 
-    private fun launchSingBoxService(config: BinaryConfig) {
-        activeServiceKind = ServiceKind.SINGBOX
+    private fun launchSingBoxVpn(config: BinaryConfig) {
+        activeServiceKind = ServiceKind.SINGBOX_VPN
         _serviceStatus.value = ServiceStatus.STARTING
         val intent = Intent(context, SingBoxVpnService::class.java).apply {
-            action = SingBoxVpnService.ACTION_START
-            putExtra(SingBoxVpnService.EXTRA_BINARY_CONFIG, config)
+            action = SingBoxServiceContract.ACTION_START
+            putExtra(SingBoxServiceContract.EXTRA_BINARY_CONFIG, config)
         }
         context.startForegroundService(intent)
         addLog(LogLevel.INFO, "正在启动 sing-box VPN...")
+        observeActiveService()
+    }
+
+    private fun launchSingBoxProxy(config: BinaryConfig) {
+        activeServiceKind = ServiceKind.SINGBOX_PROXY
+        _serviceStatus.value = ServiceStatus.STARTING
+        val intent = Intent(context, SingBoxProxyService::class.java).apply {
+            action = SingBoxServiceContract.ACTION_START
+            putExtra(SingBoxServiceContract.EXTRA_BINARY_CONFIG, config)
+        }
+        context.startForegroundService(intent)
+        addLog(LogLevel.INFO, "正在启动 sing-box 代理...")
         observeActiveService()
     }
 
@@ -361,7 +483,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
         context.bindService(
             Intent(context, SingBoxVpnService::class.java),
-            singBoxServiceConnection,
+            singBoxVpnServiceConnection,
+            Context.BIND_AUTO_CREATE,
+        )
+        context.bindService(
+            Intent(context, SingBoxProxyService::class.java),
+            singBoxProxyServiceConnection,
             Context.BIND_AUTO_CREATE,
         )
     }
@@ -371,17 +498,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         logJob?.cancel()
 
         when (activeServiceKind) {
-            ServiceKind.SINGBOX -> {
-                val service = boundSingBoxService ?: return
-                stateJob = viewModelScope.launch {
-                    service.serviceState.collectLatest { state ->
-                        _serviceState.value = state
-                        _serviceStatus.value = if (state.isRunning) ServiceStatus.RUNNING else ServiceStatus.STOPPED
-                    }
-                }
-                logJob = viewModelScope.launch {
-                    service.logs.collect { appendLog(it) }
-                }
+            ServiceKind.SINGBOX_VPN -> {
+                val service = boundSingBoxVpnService ?: return
+                bindSingBoxObservers(service.serviceState, service.logs)
+            }
+            ServiceKind.SINGBOX_PROXY -> {
+                val service = boundSingBoxProxyService ?: return
+                bindSingBoxObservers(service.serviceState, service.logs)
             }
             ServiceKind.BINARY -> {
                 val service = boundBinaryService ?: return
@@ -396,6 +519,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
             null -> Unit
+        }
+    }
+
+    private fun bindSingBoxObservers(
+        state: StateFlow<ServiceState>,
+        logs: SharedFlow<LogEntry>,
+    ) {
+        stateJob = viewModelScope.launch {
+            state.collectLatest { serviceState ->
+                _serviceState.value = serviceState
+                _serviceStatus.value = if (serviceState.isRunning) ServiceStatus.RUNNING else ServiceStatus.STOPPED
+            }
+        }
+        logJob = viewModelScope.launch {
+            logs.collect { appendLog(it) }
         }
     }
 
@@ -417,6 +555,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (_currentConfig.value.binaryName.isBlank() && _availableBinaryNames.value.isNotEmpty()) {
                 _currentConfig.value = _currentConfig.value.copy(binaryName = _availableBinaryNames.value.first())
             }
+            refreshSingBoxRunMode()
         }
     }
 
@@ -425,6 +564,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             configManager.configFlow.collectLatest { config ->
                 if (config != _currentConfig.value) {
                     _currentConfig.value = config
+                    refreshSingBoxRunMode()
                 }
             }
         }
@@ -433,6 +573,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun refreshAppConfigFiles() {
         viewModelScope.launch {
             _appConfigFiles.value = appConfigManager.getAllConfigFiles()
+            refreshSingBoxRunMode()
         }
     }
 
@@ -473,18 +614,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             runCatching { context.unbindService(binaryServiceConnection) }
                 .onFailure { Log.w(TAG, "二进制服务已经解除绑定", it) }
         }
-        if (singBoxBound) {
-            runCatching { context.unbindService(singBoxServiceConnection) }
-                .onFailure { Log.w(TAG, "sing-box 服务已经解除绑定", it) }
+        if (singBoxVpnBound) {
+            runCatching { context.unbindService(singBoxVpnServiceConnection) }
+                .onFailure { Log.w(TAG, "sing-box VPN 服务已经解除绑定", it) }
+        }
+        if (singBoxProxyBound) {
+            runCatching { context.unbindService(singBoxProxyServiceConnection) }
+                .onFailure { Log.w(TAG, "sing-box 代理服务已经解除绑定", it) }
         }
         boundBinaryService = null
-        boundSingBoxService = null
+        boundSingBoxVpnService = null
+        boundSingBoxProxyService = null
         super.onCleared()
     }
 
     private enum class ServiceKind {
         BINARY,
-        SINGBOX,
+        SINGBOX_VPN,
+        SINGBOX_PROXY,
     }
 
     companion object {

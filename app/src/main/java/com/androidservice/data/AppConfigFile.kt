@@ -10,7 +10,8 @@ data class AppConfigFile(
     val filePath: String = "",
     val lastModified: Long = 0L,
     val size: Long = 0L,
-    val fileExtension: String = ""
+    val fileExtension: String = "",
+    val remoteUrl: String = "",
 ) : Parcelable
 
 enum class ConfigFileType(val extension: String, val displayName: String) {

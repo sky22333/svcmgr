@@ -2,23 +2,21 @@ package com.androidservice.service
 
 import android.app.Notification
 import android.app.PendingIntent
-import android.content.Context
+import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.net.VpnService
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
-import android.os.ParcelFileDescriptor
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.androidservice.AndroidServiceApplication
 import com.androidservice.R
 import com.androidservice.data.BinaryConfig
 import com.androidservice.manager.AppConfigManager
+import com.androidservice.singbox.SingBoxPlatform
 import com.androidservice.singbox.SingBoxRuntime
 import com.androidservice.singbox.SingBoxServiceContract
-import com.androidservice.singbox.SingBoxVpnPlatform
 import com.androidservice.singbox.readBinaryConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -26,27 +24,22 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.withContext
 
-class SingBoxVpnService : VpnService() {
+class SingBoxProxyService : Service() {
 
     inner class SingBoxBinder : Binder() {
-        fun getService(): SingBoxVpnService = this@SingBoxVpnService
+        fun getService(): SingBoxProxyService = this@SingBoxProxyService
     }
 
     private val binder = SingBoxBinder()
     private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val appConfigManager by lazy { AppConfigManager(this) }
-    private var tunInterface: ParcelFileDescriptor? = null
     private lateinit var runtime: SingBoxRuntime
 
     override fun onCreate() {
         super.onCreate()
-        val platform = SingBoxVpnPlatform(this) { pfd ->
-            tunInterface?.close()
-            tunInterface = pfd
-        }
         runtime = SingBoxRuntime(
             scope = serviceScope,
-            platform = platform,
+            platform = SingBoxPlatform(),
             packageName = packageName,
             loadConfigContent = { config ->
                 withContext(Dispatchers.IO) {
@@ -57,26 +50,18 @@ class SingBoxVpnService : VpnService() {
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
             },
-            onRelease = {
-                tunInterface?.close()
-                tunInterface = null
-            },
         )
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             SingBoxServiceContract.ACTION_START -> intent.readBinaryConfig()?.let { startSingBox(it) }
-            SingBoxServiceContract.ACTION_STOP -> runtime.stop(getString(R.string.singbox_vpn_stopped))
+            SingBoxServiceContract.ACTION_STOP -> runtime.stop(getString(R.string.singbox_proxy_stopped))
         }
         return START_STICKY
     }
 
     override fun onBind(intent: Intent): IBinder = binder
-
-    override fun onRevoke() {
-        runtime.stop(getString(R.string.singbox_vpn_revoked))
-    }
 
     override fun onDestroy() {
         serviceScope.cancel()
@@ -88,17 +73,17 @@ class SingBoxVpnService : VpnService() {
 
     private fun startSingBox(config: BinaryConfig) {
         startForeground()
-        runtime.start(config, getString(R.string.singbox_vpn_started))
+        runtime.start(config, getString(R.string.singbox_proxy_started))
     }
 
     fun stopSingBox() {
-        runtime.stop(getString(R.string.singbox_vpn_stopped))
+        runtime.stop(getString(R.string.singbox_proxy_stopped))
     }
 
     private fun startForeground() {
         ServiceCompat.startForeground(
             this,
-            AndroidServiceApplication.SINGBOX_NOTIFICATION_ID,
+            AndroidServiceApplication.SINGBOX_PROXY_NOTIFICATION_ID,
             createNotification(running = false),
             foregroundServiceType(),
         )
@@ -122,14 +107,14 @@ class SingBoxVpnService : VpnService() {
         val stopIntent = PendingIntent.getService(
             this,
             STOP_REQUEST_CODE,
-            Intent(this, SingBoxVpnService::class.java).setAction(SingBoxServiceContract.ACTION_STOP),
+            Intent(this, SingBoxProxyService::class.java).setAction(SingBoxServiceContract.ACTION_STOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         return NotificationCompat.Builder(this, AndroidServiceApplication.SINGBOX_NOTIFICATION_CHANNEL_ID)
-            .setContentTitle(getString(R.string.singbox_notification_title))
+            .setContentTitle(getString(R.string.singbox_proxy_notification_title))
             .setContentText(
-                if (running) getString(R.string.singbox_notification_running)
-                else getString(R.string.singbox_notification_starting),
+                if (running) getString(R.string.singbox_proxy_notification_running)
+                else getString(R.string.singbox_proxy_notification_starting),
             )
             .setSmallIcon(R.drawable.ic_notification_service)
             .setContentIntent(launchIntent)
@@ -142,8 +127,6 @@ class SingBoxVpnService : VpnService() {
     }
 
     companion object {
-        private const val STOP_REQUEST_CODE = 2002
-
-        fun prepareIntent(context: Context): Intent? = VpnService.prepare(context)
+        private const val STOP_REQUEST_CODE = 2003
     }
 }

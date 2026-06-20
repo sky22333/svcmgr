@@ -9,12 +9,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -36,14 +40,20 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.androidservice.R
 import com.androidservice.data.AppConfigFile
 import com.androidservice.data.ConfigFileType
+import com.androidservice.manager.RemoteConfigFetcher
+import com.androidservice.manager.RemoteConfigRefreshResult
 import com.androidservice.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
 
@@ -57,10 +67,16 @@ fun ConfigEditScreen(
     val clipboard = LocalClipboard.current
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val refreshingRemoteFiles by viewModel.refreshingRemoteFiles.collectAsStateWithLifecycle()
 
     var fileNameState by remember(fileName) { mutableStateOf(fileName ?: "config.json") }
+    var remoteUrlState by remember(fileName) { mutableStateOf("") }
     var contentState by remember { mutableStateOf(TextFieldValue("")) }
     var isSaving by remember { mutableStateOf(false) }
+    var isSyncing by remember { mutableStateOf(false) }
+
+    val syncKey = fileNameState.trim()
+    val isRemoteRefreshing = syncKey in refreshingRemoteFiles || isSyncing
 
     LaunchedEffect(fileName) {
         if (fileName.isNullOrBlank()) return@LaunchedEffect
@@ -70,6 +86,7 @@ fun ConfigEditScreen(
             return@LaunchedEffect
         }
         fileNameState = configFile.fileName
+        remoteUrlState = configFile.remoteUrl
         contentState = TextFieldValue(
             text = configFile.content,
             selection = TextRange.Zero
@@ -92,11 +109,44 @@ fun ConfigEditScreen(
                     }
                 },
                 actions = {
+                    if (remoteUrlState.isNotBlank()) {
+                        IconButton(
+                            onClick = {
+                                scope.launch {
+                                    syncRemoteConfig(
+                                        fileName = fileNameState,
+                                        remoteUrl = remoteUrlState,
+                                        content = contentState.text,
+                                        viewModel = viewModel,
+                                        snackbarHostState = snackbarHostState,
+                                        onSyncing = { isSyncing = it },
+                                        onContentUpdated = { content ->
+                                            contentState = TextFieldValue(content, TextRange.Zero)
+                                        },
+                                    )
+                                }
+                            },
+                            enabled = !isSaving && !isRemoteRefreshing,
+                        ) {
+                            if (isRemoteRefreshing) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                )
+                            } else {
+                                Icon(
+                                    Icons.Filled.Sync,
+                                    contentDescription = stringResource(R.string.config_remote_refresh),
+                                )
+                            }
+                        }
+                    }
                     IconButton(
                         onClick = {
                             scope.launch {
                                 saveFile(
                                     fileName = fileNameState,
+                                    remoteUrl = remoteUrlState,
                                     content = contentState.text,
                                     viewModel = viewModel,
                                     snackbarHostState = snackbarHostState,
@@ -105,7 +155,7 @@ fun ConfigEditScreen(
                                 )
                             }
                         },
-                        enabled = !isSaving
+                        enabled = !isSaving && !isRemoteRefreshing
                     ) {
                         Icon(Icons.Filled.Save, contentDescription = "保存")
                     }
@@ -142,6 +192,22 @@ fun ConfigEditScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
+            OutlinedTextField(
+                value = remoteUrlState,
+                onValueChange = { remoteUrlState = it },
+                label = { Text(stringResource(R.string.config_remote_url_label)) },
+                placeholder = { Text(stringResource(R.string.config_remote_url_hint)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Text(
+                text = stringResource(R.string.config_remote_url_description),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedButton(
                     onClick = { contentState = TextFieldValue("") },
@@ -169,6 +235,7 @@ fun ConfigEditScreen(
                         scope.launch {
                             saveFile(
                                 fileName = fileNameState,
+                                remoteUrl = remoteUrlState,
                                 content = contentState.text,
                                 viewModel = viewModel,
                                 snackbarHostState = snackbarHostState,
@@ -178,7 +245,7 @@ fun ConfigEditScreen(
                         }
                     },
                     modifier = Modifier.weight(1f),
-                    enabled = !isSaving,
+                    enabled = !isSaving && !isRemoteRefreshing,
                     contentPadding = PaddingValues(vertical = 10.dp)
                 ) {
                     Icon(Icons.Filled.Save, contentDescription = null)
@@ -202,8 +269,71 @@ fun ConfigEditScreen(
     }
 }
 
+private suspend fun syncRemoteConfig(
+    fileName: String,
+    remoteUrl: String,
+    content: String,
+    viewModel: MainViewModel,
+    snackbarHostState: SnackbarHostState,
+    onSyncing: (Boolean) -> Unit,
+    onContentUpdated: (String) -> Unit,
+) {
+    val trimmedUrl = remoteUrl.trim()
+    if (trimmedUrl.isBlank()) return
+
+    onSyncing(true)
+    val trimmedName = fileName.trim()
+    val existing = if (trimmedName.isNotBlank() && isValidFileName(trimmedName)) {
+        viewModel.loadAppConfigFile(trimmedName)
+    } else {
+        null
+    }
+    val result = try {
+        if (existing != null) {
+            if (existing.remoteUrl != trimmedUrl) {
+                viewModel.saveAppConfigFile(
+                    existing.copy(
+                        content = content,
+                        remoteUrl = trimmedUrl,
+                    ),
+                )
+            }
+            viewModel.refreshRemoteConfigFile(trimmedName)
+        } else {
+            viewModel.fetchRemoteConfigPreview(trimmedUrl)
+        }
+    } finally {
+        onSyncing(false)
+    }
+
+    when (result) {
+        is RemoteConfigRefreshResult.Success -> {
+            onContentUpdated(result.content)
+            if (existing != null) {
+                snackbarHostState.showSnackbar("远程配置已更新")
+            } else if (trimmedName.isNotBlank() && isValidFileName(trimmedName)) {
+                viewModel.saveAppConfigFile(
+                    AppConfigFile(
+                        fileName = trimmedName,
+                        content = result.content,
+                        remoteUrl = trimmedUrl,
+                        fileExtension = fileExtension(trimmedName),
+                    ),
+                )
+                snackbarHostState.showSnackbar("远程配置已更新")
+            } else {
+                snackbarHostState.showSnackbar("远程配置已拉取")
+            }
+        }
+        is RemoteConfigRefreshResult.Failure -> {
+            snackbarHostState.showSnackbar(result.message)
+        }
+    }
+}
+
 private suspend fun saveFile(
     fileName: String,
+    remoteUrl: String,
     content: String,
     viewModel: MainViewModel,
     snackbarHostState: SnackbarHostState,
@@ -228,6 +358,10 @@ private suspend fun saveFile(
             snackbarHostState.showSnackbar("配置文件不能超过 2MB")
             return
         }
+        remoteUrl.isNotBlank() && !RemoteConfigFetcher.isSupportedUrl(remoteUrl) -> {
+            snackbarHostState.showSnackbar("远程 URL 无效")
+            return
+        }
     }
 
     onSaving(true)
@@ -235,6 +369,7 @@ private suspend fun saveFile(
         AppConfigFile(
             fileName = trimmedName,
             content = content,
+            remoteUrl = remoteUrl.trim(),
             fileExtension = fileExtension(trimmedName)
         )
     )

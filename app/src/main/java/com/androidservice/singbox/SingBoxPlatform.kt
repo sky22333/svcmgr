@@ -28,8 +28,10 @@ import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 import io.nekohasekai.libbox.NetworkInterface as LibboxNetworkInterface
 
-abstract class SingBoxPlatform : PlatformInterface {
-    override fun usePlatformAutoDetectInterfaceControl(): Boolean = true
+open class SingBoxPlatform : PlatformInterface {
+    override fun usePlatformAutoDetectInterfaceControl(): Boolean = false
+
+    override fun autoDetectInterfaceControl(fd: Int) = Unit
 
     override fun openTun(options: TunOptions): Int = error("openTun must be implemented by VpnService")
 

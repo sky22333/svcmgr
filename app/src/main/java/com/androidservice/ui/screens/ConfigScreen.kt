@@ -42,11 +42,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.androidservice.R
 import com.androidservice.singbox.SingBoxConstants
+import com.androidservice.singbox.SingBoxRunMode
 import com.androidservice.ui.FlatPanel
 import com.androidservice.ui.PageHeader
 import com.androidservice.ui.SectionTitle
@@ -64,6 +67,7 @@ fun ConfigScreen(viewModel: MainViewModel = viewModel()) {
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     val isSingBox = config.binaryName == SingBoxConstants.BINARY_NAME
+    val singBoxRunMode by viewModel.singBoxRunMode.collectAsStateWithLifecycle()
 
     var expanded by remember { mutableStateOf(false) }
     var configExpanded by remember { mutableStateOf(false) }
@@ -77,6 +81,10 @@ fun ConfigScreen(viewModel: MainViewModel = viewModel()) {
 
     LaunchedEffect(Unit) {
         viewModel.loadAvailableBinaryNames()
+    }
+
+    LaunchedEffect(isSingBox, config.configFileName) {
+        if (isSingBox) viewModel.refreshSingBoxRunMode()
     }
 
     LaunchedEffect(userEdited, argumentsText, restartDelayText, maxRestartsText) {
@@ -171,7 +179,11 @@ fun ConfigScreen(viewModel: MainViewModel = viewModel()) {
                     }
                 }
                 Text(
-                    text = "通过 libbox + VPN 代理系统流量，配置需包含 tun inbound",
+                    text = when (singBoxRunMode) {
+                        SingBoxRunMode.VPN -> stringResource(R.string.singbox_mode_vpn)
+                        SingBoxRunMode.PROXY -> stringResource(R.string.singbox_mode_proxy)
+                        null -> stringResource(R.string.singbox_mode_unknown)
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

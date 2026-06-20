@@ -76,6 +76,7 @@ class AndroidServiceApplication : Application() {
         const val SINGBOX_NOTIFICATION_CHANNEL_ID = "singbox_vpn_channel"
         const val SINGBOX_NOTIFICATION_CHANNEL_NAME = "sing-box VPN"
         const val SINGBOX_NOTIFICATION_ID = 1002
+        const val SINGBOX_PROXY_NOTIFICATION_ID = 1003
 
         val connectivity: ConnectivityManager
             get() = instance.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
