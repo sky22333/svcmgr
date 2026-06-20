@@ -6,9 +6,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -16,19 +15,22 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BatterySaver
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Upload
-import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -48,26 +50,42 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.androidservice.R
+import com.androidservice.manager.RemoteConfigRefreshResult
 import com.androidservice.singbox.SingBoxConstants
 import com.androidservice.singbox.SingBoxRunMode
+import com.androidservice.ui.AppDimens
+import com.androidservice.ui.CompactIconButton
 import com.androidservice.ui.FlatPanel
+import com.androidservice.ui.ModeChip
 import com.androidservice.ui.PageHeader
 import com.androidservice.ui.SectionTitle
 import com.androidservice.ui.VisibilityFade
+import com.androidservice.ui.rememberFormatRefreshFailure
+import com.androidservice.ui.screenHorizontalPadding
 import com.androidservice.viewmodel.MainViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ConfigScreen(viewModel: MainViewModel = viewModel()) {
+fun ConfigScreen(
+    viewModel: MainViewModel = viewModel(),
+    snackbarHostState: SnackbarHostState,
+    onNavigateToConfigEdit: (String?) -> Unit,
+) {
     val config by viewModel.currentConfig.collectAsStateWithLifecycle()
     val availableNames by viewModel.availableBinaryNames.collectAsStateWithLifecycle()
     val appConfigFiles by viewModel.appConfigFiles.collectAsStateWithLifecycle()
+    val refreshingRemoteFiles by viewModel.refreshingRemoteFiles.collectAsStateWithLifecycle()
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
+    val formatRefreshFailure = rememberFormatRefreshFailure()
+    val refreshSuccessMessage = stringResource(R.string.config_remote_refresh_success)
     val isSingBox = config.binaryName == SingBoxConstants.BINARY_NAME
     val singBoxRunMode by viewModel.singBoxRunMode.collectAsStateWithLifecycle()
+    val singBoxListen by viewModel.singBoxListenEndpoint.collectAsStateWithLifecycle()
+    val selectedConfigFile = appConfigFiles.find { it.fileName == config.configFileName }
+    val isRefreshingSelected = config.configFileName in refreshingRemoteFiles
 
     var expanded by remember { mutableStateOf(false) }
     var configExpanded by remember { mutableStateOf(false) }
@@ -93,7 +111,7 @@ fun ConfigScreen(viewModel: MainViewModel = viewModel()) {
         val next = latestConfig.copy(
             argumentsString = argumentsText,
             restartDelay = restartDelayText.toLongOrNull()?.coerceAtLeast(1)?.times(1000) ?: latestConfig.restartDelay,
-            maxRestarts = maxRestartsText.toIntOrNull() ?: -1
+            maxRestarts = maxRestartsText.toIntOrNull() ?: -1,
         )
         if (next != latestConfig) viewModel.updateConfig(next)
     }
@@ -102,40 +120,48 @@ fun ConfigScreen(viewModel: MainViewModel = viewModel()) {
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 18.dp)
-            .navigationBarsPadding(),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .screenHorizontalPadding()
+            .padding(top = AppDimens.screenTop, bottom = AppDimens.screenBottom),
+        verticalArrangement = Arrangement.spacedBy(AppDimens.sectionSpacing),
     ) {
-        Spacer(Modifier.height(16.dp))
-        PageHeader("运行设置", "选择程序、启动参数、重启策略和后台运行选项")
+        PageHeader(
+            title = stringResource(R.string.settings_title),
+            subtitle = stringResource(R.string.settings_subtitle),
+        )
 
         FlatPanel {
-            SectionTitle("程序")
+            SectionTitle(stringResource(R.string.settings_program))
             ExposedDropdownMenuBox(
                 expanded = expanded,
-                onExpandedChange = { expanded = !expanded }
+                onExpandedChange = { expanded = !expanded },
             ) {
                 OutlinedTextField(
                     value = config.binaryName,
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("程序") },
+                    label = { Text(stringResource(R.string.settings_program), style = MaterialTheme.typography.bodySmall) },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+                    textStyle = MaterialTheme.typography.bodySmall,
                     modifier = Modifier
                         .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true)
-                        .fillMaxWidth()
+                        .fillMaxWidth(),
+                    colors = compactTextFieldColors(),
                 )
                 ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                     if (availableNames.isEmpty()) {
-                        DropdownMenuItem(text = { Text("未发现可用程序") }, enabled = false, onClick = {})
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.settings_no_binaries), style = MaterialTheme.typography.bodySmall) },
+                            enabled = false,
+                            onClick = {},
+                        )
                     } else {
                         availableNames.forEach { name ->
                             DropdownMenuItem(
-                                text = { Text(name) },
+                                text = { Text(name, style = MaterialTheme.typography.bodySmall) },
                                 onClick = {
                                     viewModel.updateConfig(config.copy(binaryName = name))
                                     expanded = false
-                                }
+                                },
                             )
                         }
                     }
@@ -145,164 +171,258 @@ fun ConfigScreen(viewModel: MainViewModel = viewModel()) {
 
         if (isSingBox) {
             FlatPanel {
-                SectionTitle("sing-box 配置")
+                SectionTitle(
+                    title = stringResource(R.string.settings_singbox_config),
+                    trailing = {
+                        Row {
+                            if (config.configFileName.isNotBlank()) {
+                                CompactIconButton(
+                                    onClick = { onNavigateToConfigEdit(config.configFileName) },
+                                    contentDescription = stringResource(R.string.action_edit),
+                                    icon = Icons.Filled.Edit,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                            if (!selectedConfigFile?.remoteUrl.isNullOrBlank()) {
+                                IconButton(
+                                    onClick = {
+                                        scope.launch {
+                                            when (val result = viewModel.refreshRemoteConfigFile(config.configFileName)) {
+                                                is RemoteConfigRefreshResult.Success -> {
+                                                    snackbarHostState.showSnackbar(refreshSuccessMessage)
+                                                }
+                                                is RemoteConfigRefreshResult.Failure -> {
+                                                    snackbarHostState.showSnackbar(formatRefreshFailure(result.message))
+                                                }
+                                            }
+                                        }
+                                    },
+                                    enabled = !isRefreshingSelected,
+                                    modifier = Modifier.size(AppDimens.iconButtonSize),
+                                ) {
+                                    if (isRefreshingSelected) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp,
+                                        )
+                                    } else {
+                                        Icon(
+                                            Icons.Filled.Sync,
+                                            contentDescription = stringResource(R.string.config_remote_refresh),
+                                            modifier = Modifier.size(AppDimens.iconSize),
+                                            tint = MaterialTheme.colorScheme.primary,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    },
+                )
                 ExposedDropdownMenuBox(
                     expanded = configExpanded,
-                    onExpandedChange = { configExpanded = !configExpanded }
+                    onExpandedChange = { configExpanded = !configExpanded },
                 ) {
                     OutlinedTextField(
-                        value = config.configFileName.ifBlank { "未选择" },
+                        value = config.configFileName.ifBlank { stringResource(R.string.home_not_selected) },
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("配置文件") },
-                        placeholder = { Text("在「文件」页创建 JSON 配置") },
+                        label = { Text(stringResource(R.string.settings_config_file), style = MaterialTheme.typography.bodySmall) },
+                        placeholder = { Text(stringResource(R.string.settings_config_placeholder), style = MaterialTheme.typography.bodySmall) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(configExpanded) },
+                        textStyle = MaterialTheme.typography.bodySmall,
                         modifier = Modifier
                             .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true)
-                            .fillMaxWidth()
+                            .fillMaxWidth(),
+                        colors = compactTextFieldColors(),
                     )
                     ExposedDropdownMenu(expanded = configExpanded, onDismissRequest = { configExpanded = false }) {
                         val jsonFiles = appConfigFiles.filter { it.fileName.endsWith(".json", ignoreCase = true) }
                         if (jsonFiles.isEmpty()) {
-                            DropdownMenuItem(text = { Text("暂无 JSON 配置文件") }, enabled = false, onClick = {})
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.settings_no_json), style = MaterialTheme.typography.bodySmall) },
+                                enabled = false,
+                                onClick = {},
+                            )
                         } else {
                             jsonFiles.forEach { file ->
                                 DropdownMenuItem(
-                                    text = { Text(file.fileName) },
+                                    text = { Text(file.fileName, style = MaterialTheme.typography.bodySmall) },
                                     onClick = {
                                         viewModel.updateConfig(config.copy(configFileName = file.fileName))
                                         configExpanded = false
-                                    }
+                                    },
                                 )
                             }
                         }
                     }
                 }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ModeChip(
+                        label = when (singBoxRunMode) {
+                            SingBoxRunMode.VPN -> stringResource(R.string.singbox_mode_vpn)
+                            SingBoxRunMode.PROXY -> stringResource(R.string.singbox_mode_proxy)
+                            null -> stringResource(R.string.singbox_mode_unknown)
+                        },
+                    )
+                }
                 Text(
                     text = when (singBoxRunMode) {
-                        SingBoxRunMode.VPN -> stringResource(R.string.singbox_mode_vpn)
-                        SingBoxRunMode.PROXY -> stringResource(R.string.singbox_mode_proxy)
+                        SingBoxRunMode.VPN -> stringResource(R.string.singbox_mode_vpn_desc)
+                        SingBoxRunMode.PROXY -> stringResource(R.string.singbox_mode_proxy_desc)
                         null -> stringResource(R.string.singbox_mode_unknown)
                     },
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (singBoxRunMode == SingBoxRunMode.PROXY && !singBoxListen.isNullOrBlank()) {
+                    Text(
+                        text = "${stringResource(R.string.singbox_listen)}: $singBoxListen",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
             }
         } else {
-        FlatPanel {
-            SectionTitle(
-                title = "启动参数",
-                trailing = {
-                    Row {
-                        IconButton(
-                            onClick = {
-                                scope.launch {
-                                    clipboard.getPlainText()?.let {
-                                        userEdited = true
-                                        argumentsText = it
+            FlatPanel {
+                SectionTitle(
+                    title = stringResource(R.string.settings_arguments),
+                    trailing = {
+                        Row {
+                            CompactIconButton(
+                                onClick = {
+                                    scope.launch {
+                                        clipboard.getPlainText()?.let {
+                                            userEdited = true
+                                            argumentsText = it
+                                        }
                                     }
-                                }
-                            }
-                        ) {
-                            Icon(Icons.Filled.ContentPaste, contentDescription = "粘贴参数")
+                                },
+                                contentDescription = stringResource(R.string.action_paste),
+                                icon = Icons.Filled.ContentPaste,
+                            )
+                            CompactIconButton(
+                                onClick = { viewModel.updateConfig(config.copy(argumentsString = argumentsText)) },
+                                contentDescription = stringResource(R.string.action_save),
+                                icon = Icons.Filled.Save,
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
                         }
-                        IconButton(onClick = { viewModel.updateConfig(config.copy(argumentsString = argumentsText)) }) {
-                            Icon(Icons.Filled.Save, contentDescription = "保存参数")
-                        }
+                    },
+                )
+                OutlinedTextField(
+                    value = argumentsText,
+                    onValueChange = {
+                        userEdited = true
+                        argumentsText = it
+                    },
+                    label = { Text(stringResource(R.string.settings_arguments), style = MaterialTheme.typography.bodySmall) },
+                    placeholder = { Text(stringResource(R.string.settings_arguments_hint), style = MaterialTheme.typography.bodySmall) },
+                    textStyle = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = compactTextFieldColors(),
+                )
+                VisibilityFade(argumentsText.isNotBlank()) {
+                    Text(
+                        text = stringResource(
+                            R.string.settings_arguments_exec,
+                            config.binaryName.ifBlank { stringResource(R.string.settings_program) },
+                            argumentsText,
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            FlatPanel {
+                SectionTitle(stringResource(R.string.settings_auto_restart))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        stringResource(R.string.settings_auto_restart_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Switch(
+                        checked = config.autoRestart,
+                        onCheckedChange = { viewModel.updateConfig(config.copy(autoRestart = it)) },
+                    )
+                }
+                VisibilityFade(config.autoRestart) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = restartDelayText,
+                            onValueChange = {
+                                userEdited = true
+                                restartDelayText = it.filter(Char::isDigit)
+                            },
+                            label = { Text(stringResource(R.string.settings_restart_delay), style = MaterialTheme.typography.bodySmall) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            textStyle = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = compactTextFieldColors(),
+                        )
+                        OutlinedTextField(
+                            value = maxRestartsText,
+                            onValueChange = {
+                                userEdited = true
+                                maxRestartsText = it.filter(Char::isDigit)
+                            },
+                            label = { Text(stringResource(R.string.settings_max_restarts), style = MaterialTheme.typography.bodySmall) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            textStyle = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = compactTextFieldColors(),
+                        )
                     }
                 }
-            )
-            OutlinedTextField(
-                value = argumentsText,
-                onValueChange = {
-                    userEdited = true
-                    argumentsText = it
-                },
-                label = { Text("参数") },
-                placeholder = { Text("例如: run -config /path/config.json --debug") },
-                modifier = Modifier.fillMaxWidth()
-            )
-            VisibilityFade(argumentsText.isNotBlank()) {
-                Text(
-                    text = "执行方式: sh -c \"${config.binaryName.ifBlank { "程序" }} $argumentsText\"",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
-        }
-        }
-
-        if (!isSingBox) {
-        FlatPanel {
-            SectionTitle("自动重启")
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("进程异常退出后自动拉起")
-                Switch(
-                    checked = config.autoRestart,
-                    onCheckedChange = { viewModel.updateConfig(config.copy(autoRestart = it)) }
-                )
-            }
-            VisibilityFade(config.autoRestart) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
-                        value = restartDelayText,
-                        onValueChange = {
-                            userEdited = true
-                            restartDelayText = it.filter(Char::isDigit)
-                        },
-                        label = { Text("重启延迟（秒）") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = maxRestartsText,
-                        onValueChange = {
-                            userEdited = true
-                            maxRestartsText = it.filter(Char::isDigit)
-                        },
-                        label = { Text("最大重启次数（留空为不限）") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-        }
         }
 
         FlatPanel {
-            SectionTitle("后台运行")
+            SectionTitle(stringResource(R.string.settings_background))
             Text(
-                text = "可选。仅在设备长时间运行时频繁停止前台服务的情况下使用。",
+                text = stringResource(R.string.settings_background_desc),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            OutlinedButton(
+            CompactIconButton(
                 onClick = viewModel::requestIgnoreBatteryOptimizations,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Filled.BatterySaver, contentDescription = null)
-                Text("允许不受限制地后台运行")
-            }
+                contentDescription = stringResource(R.string.action_battery_saver),
+                icon = Icons.Filled.BatterySaver,
+                tint = MaterialTheme.colorScheme.primary,
+            )
         }
 
         FlatPanel {
-            SectionTitle("备份")
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(onClick = viewModel::loadConfig, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Filled.Download, contentDescription = null)
-                    Text("加载")
-                }
-                Button(onClick = viewModel::saveConfig, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Filled.Upload, contentDescription = null)
-                    Text("保存")
-                }
-            }
+            SectionTitle(
+                title = stringResource(R.string.settings_runtime_backup),
+                trailing = {
+                    Row {
+                        CompactIconButton(
+                            onClick = viewModel::loadConfig,
+                            contentDescription = stringResource(R.string.action_load),
+                            icon = Icons.Filled.Download,
+                        )
+                        CompactIconButton(
+                            onClick = viewModel::saveConfig,
+                            contentDescription = stringResource(R.string.action_export),
+                            icon = Icons.Filled.Upload,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                },
+            )
         }
 
-        Spacer(Modifier.height(22.dp))
+        Spacer(Modifier.padding(bottom = 4.dp))
     }
 }
+
+@Composable
+private fun compactTextFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+)

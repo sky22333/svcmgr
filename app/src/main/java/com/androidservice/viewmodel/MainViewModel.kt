@@ -96,6 +96,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _singBoxRunMode = MutableStateFlow<SingBoxRunMode?>(null)
     val singBoxRunMode: StateFlow<SingBoxRunMode?> = _singBoxRunMode.asStateFlow()
 
+    private val _singBoxListenEndpoint = MutableStateFlow<String?>(null)
+    val singBoxListenEndpoint: StateFlow<String?> = _singBoxListenEndpoint.asStateFlow()
+
+    private val _serviceErrorMessage = MutableStateFlow<String?>(null)
+    val serviceErrorMessage: StateFlow<String?> = _serviceErrorMessage.asStateFlow()
+
     private val _refreshingRemoteFiles = MutableStateFlow<Set<String>>(emptySet())
     val refreshingRemoteFiles: StateFlow<Set<String>> = _refreshingRemoteFiles.asStateFlow()
 
@@ -161,10 +167,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
+        clearServiceError()
         val config = _currentConfig.value
         if (config.binaryName.isBlank()) {
-            addLog(LogLevel.ERROR, "请先选择程序")
-            _serviceStatus.value = ServiceStatus.ERROR
+            setServiceError("请先选择程序")
             return
         }
 
@@ -182,16 +188,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun onVpnPermissionDenied() {
-        _serviceStatus.value = ServiceStatus.ERROR
-        addLog(LogLevel.ERROR, "未授予 VPN 权限")
+        setServiceError("未授予 VPN 权限")
     }
 
     fun stopService() {
-        if (_serviceStatus.value == ServiceStatus.STOPPED) {
-            addLog(LogLevel.WARN, "服务未运行")
-            return
+        when (_serviceStatus.value) {
+            ServiceStatus.STOPPED -> {
+                addLog(LogLevel.WARN, "服务未运行")
+                return
+            }
+            ServiceStatus.STOPPING -> return
+            ServiceStatus.STARTING, ServiceStatus.RUNNING, ServiceStatus.ERROR -> Unit
         }
 
+        clearServiceError()
         _serviceStatus.value = ServiceStatus.STOPPING
         when (activeServiceKind) {
             ServiceKind.SINGBOX_VPN -> {
@@ -211,6 +221,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 addLog(LogLevel.INFO, "正在停止 sing-box 代理...")
             }
             ServiceKind.BINARY, null -> {
+                if (activeServiceKind == null && _serviceStatus.value == ServiceStatus.STARTING) {
+                    clearServiceObservation(ServiceStatus.STOPPED)
+                    addLog(LogLevel.INFO, "已取消启动")
+                    return
+                }
                 context.startService(
                     Intent(context, BinaryProcessService::class.java).apply {
                         action = BinaryProcessService.ACTION_STOP_BINARY
@@ -274,6 +289,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             configManager.clearConfig()
             _currentConfig.value = BinaryConfig()
             _singBoxRunMode.value = null
+            _singBoxListenEndpoint.value = null
             addLog(LogLevel.INFO, "配置已重置")
         }
     }
@@ -295,16 +311,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val config = _currentConfig.value
             if (!SingBoxServiceContract.usesSingBox(config) || config.configFileName.isBlank()) {
                 _singBoxRunMode.value = null
+                _singBoxListenEndpoint.value = null
                 return@launch
             }
             val content = withContext(Dispatchers.IO) {
                 appConfigManager.loadConfigFile(config.configFileName)?.content
             }
-            _singBoxRunMode.value = when {
+            val mode = when {
                 content.isNullOrBlank() -> null
                 SingBoxConfigInspector.hasTunInbound(content) -> SingBoxRunMode.VPN
                 else -> SingBoxRunMode.PROXY
             }
+            _singBoxRunMode.value = mode
+            _singBoxListenEndpoint.value = if (mode == SingBoxRunMode.PROXY) {
+                content?.let(SingBoxConfigInspector::extractListenEndpoint)
+            } else {
+                null
+            }
+        }
+    }
+
+    fun clearLogs() {
+        synchronized(logDeque) {
+            logDeque.clear()
+            _logs.value = emptyList()
+            _logCount.value = 0
         }
     }
 
@@ -410,8 +441,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun startSingBoxService(config: BinaryConfig) {
         if (config.configFileName.isBlank()) {
-            addLog(LogLevel.ERROR, "请先选择 sing-box 配置文件")
-            _serviceStatus.value = ServiceStatus.ERROR
+            setServiceError("请先选择 sing-box 配置文件")
             return
         }
 
@@ -420,8 +450,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 appConfigManager.loadConfigFile(config.configFileName)?.content
             }
             if (content.isNullOrBlank()) {
-                addLog(LogLevel.ERROR, "配置文件不存在或为空: ${config.configFileName}")
-                _serviceStatus.value = ServiceStatus.ERROR
+                setServiceError("配置文件不存在或为空: ${config.configFileName}")
                 return@launch
             }
 
@@ -511,7 +540,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 stateJob = viewModelScope.launch {
                     service.serviceState.collectLatest { state ->
                         _serviceState.value = state
-                        _serviceStatus.value = if (state.isRunning) ServiceStatus.RUNNING else ServiceStatus.STOPPED
+                        _serviceStatus.value = if (state.isRunning) {
+                            clearServiceError()
+                            ServiceStatus.RUNNING
+                        } else {
+                            ServiceStatus.STOPPED
+                        }
                     }
                 }
                 logJob = viewModelScope.launch {
@@ -529,7 +563,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         stateJob = viewModelScope.launch {
             state.collectLatest { serviceState ->
                 _serviceState.value = serviceState
-                _serviceStatus.value = if (serviceState.isRunning) ServiceStatus.RUNNING else ServiceStatus.STOPPED
+                _serviceStatus.value = if (serviceState.isRunning) {
+                    clearServiceError()
+                    ServiceStatus.RUNNING
+                } else {
+                    ServiceStatus.STOPPED
+                }
             }
         }
         logJob = viewModelScope.launch {
@@ -542,6 +581,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         logJob?.cancel()
         activeServiceKind = null
         _serviceStatus.value = status
+        if (status != ServiceStatus.ERROR) {
+            clearServiceError()
+        }
+    }
+
+    private fun setServiceError(message: String) {
+        _serviceErrorMessage.value = message
+        _serviceStatus.value = ServiceStatus.ERROR
+        addLog(LogLevel.ERROR, message)
+    }
+
+    private fun clearServiceError() {
+        _serviceErrorMessage.value = null
     }
 
     private fun loadBinaryList() {

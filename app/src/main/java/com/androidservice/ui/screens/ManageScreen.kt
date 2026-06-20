@@ -3,12 +3,10 @@ package com.androidservice.ui.screens
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,16 +15,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -39,19 +38,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboard
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.androidservice.R
 import com.androidservice.data.AppConfigFile
 import com.androidservice.manager.RemoteConfigRefreshResult
+import com.androidservice.ui.AppDimens
+import com.androidservice.ui.CompactIconButton
 import com.androidservice.ui.EmptyState
 import com.androidservice.ui.PageHeader
 import com.androidservice.ui.rememberDateTimeFormatter
+import com.androidservice.ui.rememberFormatRefreshFailure
+import com.androidservice.ui.screenHorizontalPadding
 import com.androidservice.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -60,31 +63,37 @@ import java.util.Date
 @Composable
 fun ManageScreen(
     viewModel: MainViewModel = viewModel(),
-    onNavigateToConfigEdit: (String?) -> Unit = {}
+    snackbarHostState: SnackbarHostState,
+    listBottomPadding: Dp = AppDimens.fabClearance,
+    onNavigateToConfigEdit: (String?) -> Unit = {},
 ) {
     val files by viewModel.appConfigFiles.collectAsStateWithLifecycle()
     val refreshingRemoteFiles by viewModel.refreshingRemoteFiles.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
     val dateFormatter = rememberDateTimeFormatter("yyyy-MM-dd HH:mm")
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 18.dp)
-            .navigationBarsPadding(),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .screenHorizontalPadding()
+            .padding(top = AppDimens.screenTop),
+        verticalArrangement = Arrangement.spacedBy(AppDimens.sectionSpacing),
     ) {
-        Spacer(Modifier.height(16.dp))
-        PageHeader("配置文件", "创建、编辑、远程拉取、复制路径或删除程序使用的配置文件")
-
-        SnackbarHost(hostState = snackbarHostState)
+        PageHeader(
+            title = stringResource(R.string.files_title),
+            subtitle = stringResource(R.string.files_subtitle),
+        )
 
         if (files.isEmpty()) {
-            EmptyState(Icons.Filled.Description, "暂无配置文件", "点击右下角按钮新建")
+            EmptyState(
+                Icons.Filled.Description,
+                stringResource(R.string.files_empty_title),
+                stringResource(R.string.files_empty_desc),
+            )
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(bottom = listBottomPadding.coerceAtLeast(AppDimens.screenBottom)),
             ) {
                 items(files, key = { it.fileName }) { file ->
                     ConfigFileRow(
@@ -115,37 +124,41 @@ private fun ConfigFileRow(
     snackbarHostState: SnackbarHostState,
 ) {
     val clipboard = LocalClipboard.current
-    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(false) }
     val refreshSuccessMessage = stringResource(R.string.config_remote_refresh_success)
     val refreshContentDescription = stringResource(R.string.config_remote_refresh)
-    val formatRefreshFailure: (String) -> String = { message ->
-        resources.getString(R.string.config_remote_refresh_failed, message)
-    }
+    val formatRefreshFailure = rememberFormatRefreshFailure()
+    val pathCopiedMessage = stringResource(R.string.files_path_copied)
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onEdit),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Filled.Description, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Icon(
+                Icons.Filled.Description,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
 
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     configFile.fileName,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     buildString {
@@ -153,18 +166,19 @@ private fun ConfigFileRow(
                         append(" · ")
                         append(dateFormatter.format(Date(configFile.lastModified)))
                         if (configFile.remoteUrl.isNotBlank()) {
-                            append(" · 远程")
+                            append(" · ")
+                            append(stringResource(R.string.files_remote_tag))
                         }
                     },
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
                     if (configFile.remoteUrl.isNotBlank()) configFile.remoteUrl else path,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
 
@@ -183,39 +197,56 @@ private fun ConfigFileRow(
                         }
                     },
                     enabled = !isRefreshing,
-                    modifier = Modifier.size(40.dp),
+                    modifier = Modifier.size(AppDimens.iconButtonSize),
                 ) {
                     if (isRefreshing) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
+                            modifier = Modifier.size(16.dp),
                             strokeWidth = 2.dp,
                         )
                     } else {
                         Icon(
                             Icons.Filled.Sync,
                             contentDescription = refreshContentDescription,
+                            modifier = Modifier.size(AppDimens.iconSize),
                             tint = MaterialTheme.colorScheme.primary,
                         )
                     }
                 }
             }
 
-            IconButton(
-                onClick = {
-                    scope.launch {
-                        clipboard.setPlainText("path", path)
-                        snackbarHostState.showSnackbar("路径已复制")
-                    }
-                },
-                modifier = Modifier.size(40.dp)
-            ) {
-                Icon(Icons.Filled.ContentCopy, contentDescription = "复制路径")
-            }
-            IconButton(onClick = onEdit, modifier = Modifier.size(40.dp)) {
-                Icon(Icons.Filled.Edit, contentDescription = "编辑")
-            }
-            IconButton(onClick = { showDeleteDialog = true }, modifier = Modifier.size(40.dp)) {
-                Icon(Icons.Filled.Delete, contentDescription = "删除", tint = MaterialTheme.colorScheme.error)
+            CompactIconButton(
+                onClick = { showMenu = true },
+                contentDescription = stringResource(R.string.action_more),
+                icon = Icons.Filled.MoreVert,
+            )
+            DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.action_copy_path), style = MaterialTheme.typography.bodySmall) },
+                    leadingIcon = { Icon(Icons.Filled.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                    onClick = {
+                        showMenu = false
+                        scope.launch {
+                            clipboard.setPlainText("path", path)
+                            snackbarHostState.showSnackbar(pathCopiedMessage)
+                        }
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.action_delete), style = MaterialTheme.typography.bodySmall) },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Filled.Delete,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                    },
+                    onClick = {
+                        showMenu = false
+                        showDeleteDialog = true
+                    },
+                )
             }
         }
     }
@@ -223,23 +254,28 @@ private fun ConfigFileRow(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("删除配置文件") },
-            text = { Text("确定删除 ${configFile.fileName}？此操作无法撤销。") },
+            title = { Text(stringResource(R.string.files_delete_title), style = MaterialTheme.typography.titleSmall) },
+            text = {
+                Text(
+                    stringResource(R.string.files_delete_message, configFile.fileName),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            },
             confirmButton = {
                 TextButton(
                     onClick = {
                         showDeleteDialog = false
                         onDelete()
-                    }
+                    },
                 ) {
-                    Text("删除", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("取消")
+                    Text(stringResource(R.string.action_cancel))
                 }
-            }
+            },
         )
     }
 }

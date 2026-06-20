@@ -1,34 +1,32 @@
 package com.androidservice.ui.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.background
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,19 +35,26 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.androidservice.R
 import com.androidservice.data.ServiceState
 import com.androidservice.data.ServiceStatus
+import com.androidservice.singbox.SingBoxConstants
+import com.androidservice.singbox.SingBoxRunMode
 import com.androidservice.ui.AnimatedCount
+import com.androidservice.ui.AppDimens
+import com.androidservice.ui.CompactIconButton
 import com.androidservice.ui.FlatPanel
 import com.androidservice.ui.MetricRow
 import com.androidservice.ui.PageHeader
 import com.androidservice.ui.SectionTitle
 import com.androidservice.ui.SoftDivider
 import com.androidservice.ui.StatusDot
+import com.androidservice.ui.screenHorizontalPadding
 import com.androidservice.ui.rememberDateTimeFormatter
 import com.androidservice.ui.theme.ThemeSeed
 import com.androidservice.ui.theme.ThemeSeedOptions
@@ -60,65 +65,86 @@ import java.util.Date
 fun HomeScreen(
     viewModel: MainViewModel = viewModel(),
     seedColor: Color,
-    onSeedColorChange: (Color) -> Unit
+    onSeedColorChange: (Color) -> Unit,
 ) {
     val serviceState by viewModel.serviceState.collectAsStateWithLifecycle()
     val serviceStatus by viewModel.serviceStatus.collectAsStateWithLifecycle()
+    val serviceError by viewModel.serviceErrorMessage.collectAsStateWithLifecycle()
     val logCount by viewModel.logCount.collectAsStateWithLifecycle()
     val config by viewModel.currentConfig.collectAsStateWithLifecycle()
+    val singBoxRunMode by viewModel.singBoxRunMode.collectAsStateWithLifecycle()
+    val singBoxListen by viewModel.singBoxListenEndpoint.collectAsStateWithLifecycle()
     val timeFormatter = rememberDateTimeFormatter("yyyy-MM-dd HH:mm:ss")
     var showSeedDialog by remember { mutableStateOf(false) }
+    val isSingBox = config.binaryName == SingBoxConstants.BINARY_NAME
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 18.dp)
-            .navigationBarsPadding(),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .screenHorizontalPadding()
+            .padding(top = AppDimens.screenTop, bottom = AppDimens.screenBottom),
+        verticalArrangement = Arrangement.spacedBy(AppDimens.sectionSpacing),
     ) {
-        Spacer(Modifier.height(16.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Top
-        ) {
-            PageHeader(
-                title = "svcmgr",
-                subtitle = "管理本机打包的二进制服务、配置文件与运行日志",
-                modifier = Modifier.weight(1f)
-            )
-            IconButton(onClick = { showSeedDialog = true }) {
-                Icon(Icons.Filled.Settings, contentDescription = "主题配色")
-            }
-        }
+        PageHeader(
+            title = stringResource(R.string.home_title),
+            subtitle = stringResource(R.string.home_subtitle),
+            trailing = {
+                CompactIconButton(
+                    onClick = { showSeedDialog = true },
+                    contentDescription = stringResource(R.string.action_theme),
+                    icon = Icons.Filled.Palette,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            },
+        )
 
         ServicePanel(
             status = serviceStatus,
             state = serviceState,
+            isSingBox = isSingBox,
+            singBoxRunMode = singBoxRunMode,
+            errorMessage = serviceError,
             onStart = viewModel::startService,
-            onStop = viewModel::stopService
+            onStop = viewModel::stopService,
         )
 
         FlatPanel {
-            SectionTitle("运行概览")
+            SectionTitle(stringResource(R.string.home_overview))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                SummaryMetric("程序", config.binaryName.ifBlank { "未选择" })
-                SummaryMetric("日志", logCount.toString())
-                SummaryMetric("重启", serviceState.restartCount.toString())
+                SummaryMetric(stringResource(R.string.home_program), config.binaryName.ifBlank { stringResource(R.string.home_not_selected) })
+                SummaryMetric(stringResource(R.string.home_logs), logCount.toString())
+                if (!isSingBox) {
+                    SummaryMetric(stringResource(R.string.home_restarts), serviceState.restartCount.toString())
+                }
             }
             SoftDivider()
-            MetricRow("进程 ID", serviceState.processId?.toString() ?: "未运行")
+            if (isSingBox) {
+                MetricRow(
+                    stringResource(R.string.home_config_file),
+                    config.configFileName.ifBlank { stringResource(R.string.home_not_selected) },
+                )
+                MetricRow(
+                    stringResource(R.string.settings_singbox_config),
+                    singBoxRunMode?.let { modeLabel(it) } ?: stringResource(R.string.singbox_mode_unknown),
+                )
+                if (singBoxRunMode == SingBoxRunMode.PROXY && !singBoxListen.isNullOrBlank()) {
+                    MetricRow(stringResource(R.string.singbox_listen), singBoxListen!!)
+                }
+            } else {
+                MetricRow(
+                    stringResource(R.string.home_process_id),
+                    serviceState.processId?.toString() ?: stringResource(R.string.home_not_running),
+                )
+            }
             MetricRow(
-                "启动时间",
-                serviceState.startTime?.let { timeFormatter.format(Date(it)) } ?: "-"
+                stringResource(R.string.home_start_time),
+                serviceState.startTime?.let { timeFormatter.format(Date(it)) } ?: "-",
             )
         }
-
-        Spacer(Modifier.height(22.dp))
     }
 
     if (showSeedDialog) {
@@ -128,47 +154,64 @@ fun HomeScreen(
                 onSeedColorChange(it.color)
                 showSeedDialog = false
             },
-            onDismiss = { showSeedDialog = false }
+            onDismiss = { showSeedDialog = false },
         )
     }
+}
+
+@Composable
+private fun modeLabel(mode: SingBoxRunMode): String = when (mode) {
+    SingBoxRunMode.VPN -> stringResource(R.string.singbox_mode_vpn)
+    SingBoxRunMode.PROXY -> stringResource(R.string.singbox_mode_proxy)
 }
 
 @Composable
 private fun ThemeSeedDialog(
     selectedColor: Color,
     onSeedSelected: (ThemeSeed) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("主题配色") },
+        title = {
+            Text(
+                stringResource(R.string.theme_dialog_title),
+                style = MaterialTheme.typography.titleMedium,
+            )
+        },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 ThemeSeedOptions.forEach { seed ->
-                    TextButton(
-                        onClick = { onSeedSelected(seed) },
-                        modifier = Modifier.fillMaxWidth()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSeedSelected(seed) }
+                            .padding(vertical = 6.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         Spacer(
                             modifier = Modifier
-                                .size(if (seed.color == selectedColor) 18.dp else 14.dp)
-                                .background(seed.color, CircleShape)
+                                .size(if (seed.color == selectedColor) 16.dp else 12.dp)
+                                .background(seed.color, CircleShape),
                         )
                         Text(
                             text = seed.name,
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(start = 12.dp)
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (seed.color == selectedColor) FontWeight.SemiBold else FontWeight.Normal,
                         )
                     }
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("完成")
-            }
-        }
+            CompactIconButton(
+                onClick = onDismiss,
+                contentDescription = stringResource(R.string.action_done),
+                icon = Icons.Filled.Check,
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        },
     )
 }
 
@@ -176,8 +219,11 @@ private fun ThemeSeedDialog(
 private fun ServicePanel(
     status: ServiceStatus,
     state: ServiceState,
+    isSingBox: Boolean,
+    singBoxRunMode: SingBoxRunMode?,
+    errorMessage: String?,
     onStart: () -> Unit,
-    onStop: () -> Unit
+    onStop: () -> Unit,
 ) {
     val active = status == ServiceStatus.RUNNING
     val busy = status == ServiceStatus.STARTING || status == ServiceStatus.STOPPING
@@ -187,16 +233,38 @@ private fun ServicePanel(
         ServiceStatus.STARTING, ServiceStatus.STOPPING -> MaterialTheme.colorScheme.tertiary
         ServiceStatus.STOPPED -> MaterialTheme.colorScheme.outline
     }
+    val canStop = status == ServiceStatus.RUNNING ||
+        status == ServiceStatus.STARTING ||
+        status == ServiceStatus.ERROR
 
     FlatPanel {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("服务状态", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text(status.label(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    stringResource(R.string.home_service_status),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    statusLabel(status, isSingBox, singBoxRunMode),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (status == ServiceStatus.ERROR) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+                if (status == ServiceStatus.ERROR && !errorMessage.isNullOrBlank()) {
+                    Text(
+                        errorMessage,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
             }
             StatusDot(color = statusColor, active = active || busy)
         }
@@ -205,45 +273,76 @@ private fun ServicePanel(
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Button(
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            FilledIconButton(
                 onClick = onStart,
                 enabled = status == ServiceStatus.STOPPED || status == ServiceStatus.ERROR,
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(vertical = 12.dp)
+                modifier = Modifier.size(AppDimens.iconButtonSize),
+                colors = IconButtonDefaults.filledIconButtonColors(),
             ) {
-                Icon(Icons.Filled.PlayArrow, contentDescription = null)
-                Text("启动")
+                Icon(
+                    Icons.Filled.PlayArrow,
+                    contentDescription = stringResource(R.string.action_start),
+                    modifier = Modifier.size(AppDimens.iconSize),
+                )
             }
-            OutlinedButton(
+            OutlinedIconButton(
                 onClick = onStop,
-                enabled = status == ServiceStatus.RUNNING,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                contentPadding = PaddingValues(vertical = 12.dp)
+                enabled = canStop,
+                modifier = Modifier.size(AppDimens.iconButtonSize),
+                colors = IconButtonDefaults.outlinedIconButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error,
+                ),
             ) {
-                Icon(Icons.Filled.Stop, contentDescription = null)
-                Text("停止")
+                Icon(
+                    Icons.Filled.Stop,
+                    contentDescription = if (status == ServiceStatus.STARTING) {
+                        stringResource(R.string.action_cancel)
+                    } else {
+                        stringResource(R.string.action_stop)
+                    },
+                    modifier = Modifier.size(AppDimens.iconSize),
+                )
             }
         }
 
-        MetricRow("当前程序", state.binaryName.ifBlank { "未启动" })
+        MetricRow(
+            stringResource(R.string.home_current_program),
+            state.binaryName.ifBlank { stringResource(R.string.home_not_running) },
+        )
+    }
+}
+
+@Composable
+private fun statusLabel(
+    status: ServiceStatus,
+    isSingBox: Boolean,
+    singBoxRunMode: SingBoxRunMode?,
+): String {
+    return when (status) {
+        ServiceStatus.STOPPED -> stringResource(R.string.status_stopped)
+        ServiceStatus.STARTING -> stringResource(R.string.status_starting)
+        ServiceStatus.RUNNING -> when {
+            isSingBox && singBoxRunMode == SingBoxRunMode.VPN -> stringResource(R.string.status_vpn_running)
+            isSingBox && singBoxRunMode == SingBoxRunMode.PROXY -> stringResource(R.string.status_proxy_running)
+            else -> stringResource(R.string.status_running)
+        }
+        ServiceStatus.STOPPING -> stringResource(R.string.status_stopping)
+        ServiceStatus.ERROR -> stringResource(R.string.status_error)
     }
 }
 
 @Composable
 private fun SummaryMetric(label: String, value: String) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         AnimatedCount(value)
     }
 }
-
-private fun ServiceStatus.label(): String = when (this) {
-    ServiceStatus.STOPPED -> "已停止"
-    ServiceStatus.STARTING -> "正在启动"
-    ServiceStatus.RUNNING -> "运行中"
-    ServiceStatus.STOPPING -> "正在停止"
-    ServiceStatus.ERROR -> "异常"
-}
-
