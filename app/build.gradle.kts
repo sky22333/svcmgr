@@ -102,6 +102,7 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.gson)
     implementation(libs.material.kolor)
+    implementation(files("libs/libbox.aar"))
 
     debugImplementation(libs.androidx.ui.tooling)
 }

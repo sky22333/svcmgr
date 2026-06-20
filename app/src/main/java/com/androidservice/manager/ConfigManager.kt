@@ -29,6 +29,7 @@ class ConfigManager(private val context: Context) {
         BinaryConfig(
             binaryName = preferences[BINARY_NAME_KEY].orEmpty(),
             argumentsString = preferences[ARGUMENTS_KEY].orEmpty(),
+            configFileName = preferences[CONFIG_FILE_NAME_KEY].orEmpty(),
             environmentVariables = environmentVariables,
             autoRestart = preferences[AUTO_RESTART_KEY] ?: false,
             restartDelay = preferences[RESTART_DELAY_KEY] ?: DEFAULT_RESTART_DELAY_MS,
@@ -40,6 +41,7 @@ class ConfigManager(private val context: Context) {
         context.dataStore.edit { preferences ->
             preferences[BINARY_NAME_KEY] = config.binaryName
             preferences[ARGUMENTS_KEY] = config.argumentsString
+            preferences[CONFIG_FILE_NAME_KEY] = config.configFileName
             preferences[ENVIRONMENT_VARIABLES_KEY] = gson.toJson(config.environmentVariables)
             preferences[AUTO_RESTART_KEY] = config.autoRestart
             preferences[RESTART_DELAY_KEY] = config.restartDelay
@@ -96,6 +98,7 @@ class ConfigManager(private val context: Context) {
 
         private val BINARY_NAME_KEY = stringPreferencesKey("binary_name")
         private val ARGUMENTS_KEY = stringPreferencesKey("arguments")
+        private val CONFIG_FILE_NAME_KEY = stringPreferencesKey("config_file_name")
         private val ENVIRONMENT_VARIABLES_KEY = stringPreferencesKey("environment_variables")
         private val AUTO_RESTART_KEY = booleanPreferencesKey("auto_restart")
         private val RESTART_DELAY_KEY = longPreferencesKey("restart_delay")

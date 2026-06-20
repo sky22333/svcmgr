@@ -46,6 +46,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.androidservice.singbox.SingBoxConstants
 import com.androidservice.ui.FlatPanel
 import com.androidservice.ui.PageHeader
 import com.androidservice.ui.SectionTitle
@@ -59,10 +60,13 @@ import kotlinx.coroutines.launch
 fun ConfigScreen(viewModel: MainViewModel = viewModel()) {
     val config by viewModel.currentConfig.collectAsStateWithLifecycle()
     val availableNames by viewModel.availableBinaryNames.collectAsStateWithLifecycle()
+    val appConfigFiles by viewModel.appConfigFiles.collectAsStateWithLifecycle()
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
+    val isSingBox = config.binaryName == SingBoxConstants.BINARY_NAME
 
     var expanded by remember { mutableStateOf(false) }
+    var configExpanded by remember { mutableStateOf(false) }
     var argumentsText by remember(config.argumentsString) { mutableStateOf(config.argumentsString) }
     var restartDelayText by remember(config.restartDelay) { mutableStateOf((config.restartDelay / 1000).toString()) }
     var maxRestartsText by remember(config.maxRestarts) {
@@ -131,6 +135,48 @@ fun ConfigScreen(viewModel: MainViewModel = viewModel()) {
             }
         }
 
+        if (isSingBox) {
+            FlatPanel {
+                SectionTitle("sing-box 配置")
+                ExposedDropdownMenuBox(
+                    expanded = configExpanded,
+                    onExpandedChange = { configExpanded = !configExpanded }
+                ) {
+                    OutlinedTextField(
+                        value = config.configFileName.ifBlank { "未选择" },
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("配置文件") },
+                        placeholder = { Text("在「文件」页创建 JSON 配置") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(configExpanded) },
+                        modifier = Modifier
+                            .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true)
+                            .fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(expanded = configExpanded, onDismissRequest = { configExpanded = false }) {
+                        val jsonFiles = appConfigFiles.filter { it.fileName.endsWith(".json", ignoreCase = true) }
+                        if (jsonFiles.isEmpty()) {
+                            DropdownMenuItem(text = { Text("暂无 JSON 配置文件") }, enabled = false, onClick = {})
+                        } else {
+                            jsonFiles.forEach { file ->
+                                DropdownMenuItem(
+                                    text = { Text(file.fileName) },
+                                    onClick = {
+                                        viewModel.updateConfig(config.copy(configFileName = file.fileName))
+                                        configExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+                Text(
+                    text = "通过 libbox + VPN 代理系统流量，配置需包含 tun inbound",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
         FlatPanel {
             SectionTitle(
                 title = "启动参数",
@@ -172,7 +218,9 @@ fun ConfigScreen(viewModel: MainViewModel = viewModel()) {
                 )
             }
         }
+        }
 
+        if (!isSingBox) {
         FlatPanel {
             SectionTitle("自动重启")
             Row(
@@ -210,6 +258,7 @@ fun ConfigScreen(viewModel: MainViewModel = viewModel()) {
                     )
                 }
             }
+        }
         }
 
         FlatPanel {

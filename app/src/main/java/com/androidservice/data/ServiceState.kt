@@ -46,6 +46,7 @@ enum class LogLevel {
 data class BinaryConfig(
     val binaryName: String = "",
     val argumentsString: String = "",
+    val configFileName: String = "",
     val environmentVariables: Map<String, String> = emptyMap(),
     val autoRestart: Boolean = false,
     val restartDelay: Long = 5000L,
