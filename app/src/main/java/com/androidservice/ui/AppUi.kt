@@ -3,6 +3,8 @@ package com.androidservice.ui
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -11,12 +13,16 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -27,22 +33,32 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.androidservice.R
+import com.androidservice.data.ServiceStatus
 
 object AppDimens {
     val screenHorizontal = 14.dp
@@ -54,6 +70,9 @@ object AppDimens {
     val fabClearance = 64.dp
     val iconButtonSize = 32.dp
     val iconSize = 18.dp
+    val serviceSwitchHeight = 38.dp
+    val serviceSwitchThumb = 28.dp
+    val serviceSwitchInset = 5.dp
 }
 
 fun Modifier.screenHorizontalPadding(): Modifier = padding(horizontal = AppDimens.screenHorizontal)
@@ -141,18 +160,124 @@ fun MetricRow(label: String, value: String) {
 }
 
 @Composable
-fun StatusDot(color: Color, active: Boolean, modifier: Modifier = Modifier) {
-    val scale by animateFloatAsState(
-        targetValue = if (active) 1.18f else 1f,
-        animationSpec = tween(280),
-        label = "statusDotScale",
+fun ServicePowerSwitch(
+    status: ServiceStatus,
+    onStart: () -> Unit,
+    onStop: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val onStartState by rememberUpdatedState(onStart)
+    val onStopState by rememberUpdatedState(onStop)
+    val resources = LocalResources.current
+    val offLabel = stringResource(R.string.service_switch_off)
+    val onLabel = stringResource(R.string.service_switch_on)
+
+    val thumbTarget = when (status) {
+        ServiceStatus.RUNNING -> 1f
+        ServiceStatus.STARTING, ServiceStatus.STOPPING -> 0.5f
+        ServiceStatus.STOPPED, ServiceStatus.ERROR -> 0f
+    }
+    val thumbOffset by animateFloatAsState(
+        targetValue = thumbTarget,
+        animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
+        label = "serviceSwitchThumb",
     )
-    Spacer(
-        modifier = modifier
-            .size(8.dp)
-            .scale(scale)
-            .background(color, CircleShape),
+    val trackColor by animateColorAsState(
+        targetValue = when (status) {
+            ServiceStatus.RUNNING -> MaterialTheme.colorScheme.primaryContainer
+            ServiceStatus.ERROR -> MaterialTheme.colorScheme.errorContainer
+            ServiceStatus.STARTING, ServiceStatus.STOPPING -> MaterialTheme.colorScheme.tertiaryContainer
+            ServiceStatus.STOPPED -> MaterialTheme.colorScheme.surfaceContainerHighest
+        },
+        animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
+        label = "serviceSwitchTrack",
     )
+    val thumbScale by animateFloatAsState(
+        targetValue = if (status == ServiceStatus.RUNNING) 1.04f else 1f,
+        animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
+        label = "serviceSwitchThumbScale",
+    )
+    val busy = status == ServiceStatus.STARTING || status == ServiceStatus.STOPPING
+    val enabled = status != ServiceStatus.STOPPING
+    val switchDescription = remember(status, resources) {
+        when (status) {
+            ServiceStatus.RUNNING -> resources.getString(R.string.service_switch_stop)
+            ServiceStatus.STARTING -> resources.getString(R.string.service_switch_cancel)
+            ServiceStatus.STOPPED, ServiceStatus.ERROR -> resources.getString(R.string.service_switch_start)
+            ServiceStatus.STOPPING -> resources.getString(R.string.status_stopping)
+        }
+    }
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(AppDimens.serviceSwitchHeight)
+                .clip(RoundedCornerShape(AppDimens.serviceSwitchHeight / 2))
+                .background(trackColor)
+                .semantics {
+                    role = Role.Switch
+                    contentDescription = switchDescription
+                }
+                .clickable(enabled = enabled) {
+                    when (status) {
+                        ServiceStatus.RUNNING, ServiceStatus.STARTING -> onStopState()
+                        ServiceStatus.STOPPED, ServiceStatus.ERROR -> onStartState()
+                        ServiceStatus.STOPPING -> Unit
+                    }
+                },
+        ) {
+            val travel = (maxWidth - AppDimens.serviceSwitchThumb - AppDimens.serviceSwitchInset * 2)
+                .coerceAtLeast(0.dp)
+            Box(
+                modifier = Modifier
+                    .offset(
+                        x = AppDimens.serviceSwitchInset + travel * thumbOffset,
+                        y = AppDimens.serviceSwitchInset,
+                    )
+                    .size(AppDimens.serviceSwitchThumb)
+                    .scale(thumbScale)
+                    .shadow(2.dp, CircleShape, clip = false)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surface),
+            )
+            if (busy) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .height(2.dp),
+                    trackColor = Color.Transparent,
+                )
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = offLabel,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (thumbOffset <= 0.5f) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+            Text(
+                text = onLabel,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (thumbOffset > 0.5f) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+        }
+    }
 }
 
 @Composable

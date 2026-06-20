@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -17,15 +16,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -52,8 +44,8 @@ import com.androidservice.ui.FlatPanel
 import com.androidservice.ui.MetricRow
 import com.androidservice.ui.PageHeader
 import com.androidservice.ui.SectionTitle
+import com.androidservice.ui.ServicePowerSwitch
 import com.androidservice.ui.SoftDivider
-import com.androidservice.ui.StatusDot
 import com.androidservice.ui.screenHorizontalPadding
 import com.androidservice.ui.rememberDateTimeFormatter
 import com.androidservice.ui.theme.ThemeSeed
@@ -225,89 +217,36 @@ private fun ServicePanel(
     onStart: () -> Unit,
     onStop: () -> Unit,
 ) {
-    val active = status == ServiceStatus.RUNNING
-    val busy = status == ServiceStatus.STARTING || status == ServiceStatus.STOPPING
-    val statusColor = when (status) {
-        ServiceStatus.RUNNING -> MaterialTheme.colorScheme.primary
-        ServiceStatus.ERROR -> MaterialTheme.colorScheme.error
-        ServiceStatus.STARTING, ServiceStatus.STOPPING -> MaterialTheme.colorScheme.tertiary
-        ServiceStatus.STOPPED -> MaterialTheme.colorScheme.outline
-    }
-    val canStop = status == ServiceStatus.RUNNING ||
-        status == ServiceStatus.STARTING ||
-        status == ServiceStatus.ERROR
-
     FlatPanel {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                stringResource(R.string.home_service_status),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                statusLabel(status, isSingBox, singBoxRunMode),
+                style = MaterialTheme.typography.bodySmall,
+                color = if (status == ServiceStatus.ERROR) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+            if (status == ServiceStatus.ERROR && !errorMessage.isNullOrBlank()) {
                 Text(
-                    stringResource(R.string.home_service_status),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    statusLabel(status, isSingBox, singBoxRunMode),
+                    errorMessage,
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (status == ServiceStatus.ERROR) {
-                        MaterialTheme.colorScheme.error
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
+                    color = MaterialTheme.colorScheme.error,
                 )
-                if (status == ServiceStatus.ERROR && !errorMessage.isNullOrBlank()) {
-                    Text(
-                        errorMessage,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
             }
-            StatusDot(color = statusColor, active = active || busy)
         }
 
-        if (busy) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-        }
-
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            FilledIconButton(
-                onClick = onStart,
-                enabled = status == ServiceStatus.STOPPED || status == ServiceStatus.ERROR,
-                modifier = Modifier.size(AppDimens.iconButtonSize),
-                colors = IconButtonDefaults.filledIconButtonColors(),
-            ) {
-                Icon(
-                    Icons.Filled.PlayArrow,
-                    contentDescription = stringResource(R.string.action_start),
-                    modifier = Modifier.size(AppDimens.iconSize),
-                )
-            }
-            OutlinedIconButton(
-                onClick = onStop,
-                enabled = canStop,
-                modifier = Modifier.size(AppDimens.iconButtonSize),
-                colors = IconButtonDefaults.outlinedIconButtonColors(
-                    contentColor = MaterialTheme.colorScheme.error,
-                ),
-            ) {
-                Icon(
-                    Icons.Filled.Stop,
-                    contentDescription = if (status == ServiceStatus.STARTING) {
-                        stringResource(R.string.action_cancel)
-                    } else {
-                        stringResource(R.string.action_stop)
-                    },
-                    modifier = Modifier.size(AppDimens.iconSize),
-                )
-            }
-        }
+        ServicePowerSwitch(
+            status = status,
+            onStart = onStart,
+            onStop = onStop,
+        )
 
         MetricRow(
             stringResource(R.string.home_current_program),
