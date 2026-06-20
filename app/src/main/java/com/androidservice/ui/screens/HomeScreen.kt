@@ -1,5 +1,9 @@
 package com.androidservice.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -46,6 +50,7 @@ import com.androidservice.ui.PageHeader
 import com.androidservice.ui.SectionTitle
 import com.androidservice.ui.ServicePowerSwitch
 import com.androidservice.ui.SoftDivider
+import com.androidservice.ui.TrafficStatsPanel
 import com.androidservice.ui.screenHorizontalPadding
 import com.androidservice.ui.rememberDateTimeFormatter
 import com.androidservice.ui.theme.ThemeSeed
@@ -66,6 +71,7 @@ fun HomeScreen(
     val config by viewModel.currentConfig.collectAsStateWithLifecycle()
     val singBoxRunMode by viewModel.singBoxRunMode.collectAsStateWithLifecycle()
     val singBoxListen by viewModel.singBoxListenEndpoint.collectAsStateWithLifecycle()
+    val singBoxTraffic by viewModel.singBoxTraffic.collectAsStateWithLifecycle()
     val timeFormatter = rememberDateTimeFormatter("yyyy-MM-dd HH:mm:ss")
     var showSeedDialog by remember { mutableStateOf(false) }
     val isSingBox = config.binaryName == SingBoxConstants.BINARY_NAME
@@ -100,6 +106,17 @@ fun HomeScreen(
             onStart = viewModel::startService,
             onStop = viewModel::stopService,
         )
+
+        AnimatedVisibility(
+            visible = isSingBox,
+            enter = fadeIn(tween(220)),
+            exit = fadeOut(tween(160)),
+        ) {
+            TrafficStatsPanel(
+                stats = singBoxTraffic,
+                active = serviceStatus == ServiceStatus.RUNNING,
+            )
+        }
 
         FlatPanel {
             SectionTitle(stringResource(R.string.home_overview))

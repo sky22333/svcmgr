@@ -85,6 +85,7 @@ class SingBoxVpnService : VpnService() {
 
     val serviceState get() = runtime.serviceState
     val logs get() = runtime.logs
+    val trafficStats get() = runtime.trafficStats
 
     private fun startSingBox(config: BinaryConfig) {
         startForeground()

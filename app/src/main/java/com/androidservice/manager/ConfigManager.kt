@@ -14,7 +14,6 @@ import com.androidservice.data.BinaryConfig
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.io.File
 
@@ -49,8 +48,6 @@ class ConfigManager(private val context: Context) {
         }
     }
 
-    suspend fun loadConfig(): BinaryConfig = configFlow.first()
-
     fun exportConfigToJson(config: BinaryConfig): String = gson.toJson(config)
 
     fun importConfigFromJson(jsonString: String): BinaryConfig? {
@@ -75,10 +72,6 @@ class ConfigManager(private val context: Context) {
         }.onFailure {
             Log.e(TAG, "加载配置文件失败", it)
         }.getOrNull()
-    }
-
-    suspend fun clearConfig() {
-        context.dataStore.edit { it.clear() }
     }
 
     fun getConfigFilePath(): String = File(context.filesDir, CONFIG_FILE_NAME).absolutePath

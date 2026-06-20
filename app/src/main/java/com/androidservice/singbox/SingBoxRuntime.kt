@@ -5,11 +5,16 @@ import com.androidservice.data.BinaryConfig
 import com.androidservice.data.LogEntry
 import com.androidservice.data.LogLevel
 import com.androidservice.data.ServiceState
+import io.nekohasekai.libbox.CommandClient
+import io.nekohasekai.libbox.CommandClientOptions
 import io.nekohasekai.libbox.CommandServer
 import io.nekohasekai.libbox.CommandServerHandler
+import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.libbox.OverrideOptions
 import io.nekohasekai.libbox.PlatformInterface
 import io.nekohasekai.libbox.SystemProxyStatus
+import com.androidservice.data.SingBoxTrafficStats
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,7 +38,11 @@ class SingBoxRuntime(
     private val _logs = MutableSharedFlow<LogEntry>(extraBufferCapacity = 512)
     val logs: SharedFlow<LogEntry> = _logs.asSharedFlow()
 
+    private val _trafficStats = MutableStateFlow(SingBoxTrafficStats())
+    val trafficStats: StateFlow<SingBoxTrafficStats> = _trafficStats.asStateFlow()
+
     private var commandServer: CommandServer? = null
+    private var commandClient: CommandClient? = null
     private var currentConfig: BinaryConfig? = null
 
     fun start(config: BinaryConfig, successMessage: String) {
@@ -54,6 +63,7 @@ class SingBoxRuntime(
                 DefaultNetworkMonitor.start()
                 commandServer = CommandServer(createHandler(), platform).also { it.start() }
                 commandServer!!.startOrReloadService(content, overrideOptions())
+                startTrafficMonitor()
                 _serviceState.value = ServiceState(
                     isRunning = true,
                     binaryName = SingBoxConstants.BINARY_NAME,
@@ -73,6 +83,7 @@ class SingBoxRuntime(
     }
 
     private suspend fun stopInternal(message: String) {
+        stopTrafficMonitor()
         runCatching {
             commandServer?.closeService()
             commandServer?.close()
@@ -84,6 +95,34 @@ class SingBoxRuntime(
         _serviceState.value = ServiceState()
         stopForegroundAndSelf()
         emitLog(LogLevel.INFO, message, "service")
+    }
+
+    private fun startTrafficMonitor() {
+        stopTrafficMonitor()
+        val handler = SingBoxTrafficHandler { message ->
+            val next = message.toTrafficStats()
+            if (next != _trafficStats.value) {
+                _trafficStats.value = next
+            }
+        }
+        val options = CommandClientOptions().apply {
+            addCommand(Libbox.CommandStatus)
+            statusInterval = TRAFFIC_STATUS_INTERVAL_NS
+        }
+        val client = Libbox.newCommandClient(handler, options)
+        commandClient = client
+        scope.launch(Dispatchers.IO) {
+            runCatching { client.connect() }
+                .onFailure { Log.w(TAG, "流量统计订阅失败", it) }
+        }
+    }
+
+    private fun stopTrafficMonitor() {
+        commandClient?.let { client ->
+            runCatching { client.disconnect() }
+        }
+        commandClient = null
+        _trafficStats.value = SingBoxTrafficStats()
     }
 
     private fun overrideOptions() = OverrideOptions().apply {
@@ -133,5 +172,6 @@ class SingBoxRuntime(
 
     companion object {
         private const val TAG = "SingBoxRuntime"
+        private const val TRAFFIC_STATUS_INTERVAL_NS = 1_000_000_000L
     }
 }

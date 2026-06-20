@@ -120,24 +120,6 @@ class ProcessManager {
 
     fun isProcessRunning(): Boolean = currentProcess?.isAlive == true
 
-    suspend fun writeToProcess(input: String): Boolean = withContext(Dispatchers.IO) {
-        val process = currentProcess
-        if (process?.isAlive != true) {
-            log(LogLevel.WARN, "进程未运行")
-            return@withContext false
-        }
-
-        try {
-            process.outputStream.write("$input\n".toByteArray())
-            process.outputStream.flush()
-            log(LogLevel.DEBUG, "已向进程发送输入")
-            return@withContext true
-        } catch (e: IOException) {
-            log(LogLevel.ERROR, "发送输入失败: ${e.message}")
-            return@withContext false
-        }
-    }
-
     fun destroy() {
         cleanup(force = true)
     }

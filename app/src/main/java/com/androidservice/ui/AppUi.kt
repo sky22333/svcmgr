@@ -1,18 +1,16 @@
 package com.androidservice.ui
 
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,9 +18,9 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -33,8 +31,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,9 +42,9 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
@@ -54,11 +52,24 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import com.androidservice.R
 import com.androidservice.data.ServiceStatus
+import com.androidservice.data.SingBoxTrafficStats
+import com.androidservice.singbox.TrafficFormatter
+
+private object AppMotion {
+    val stateChange = tween<Float>(240, easing = FastOutSlowInEasing)
+    val colorChange = tween<Color>(240, easing = FastOutSlowInEasing)
+    val fade = tween<Float>(180, easing = LinearOutSlowInEasing)
+    val valueChange = tween<Float>(200, easing = FastOutSlowInEasing)
+}
 
 object AppDimens {
     val screenHorizontal = 14.dp
@@ -179,7 +190,7 @@ fun ServicePowerSwitch(
     }
     val thumbOffset by animateFloatAsState(
         targetValue = thumbTarget,
-        animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
+        animationSpec = AppMotion.stateChange,
         label = "serviceSwitchThumb",
     )
     val trackColor by animateColorAsState(
@@ -189,15 +200,35 @@ fun ServicePowerSwitch(
             ServiceStatus.STARTING, ServiceStatus.STOPPING -> MaterialTheme.colorScheme.tertiaryContainer
             ServiceStatus.STOPPED -> MaterialTheme.colorScheme.surfaceContainerHighest
         },
-        animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
+        animationSpec = AppMotion.colorChange,
         label = "serviceSwitchTrack",
     )
-    val thumbScale by animateFloatAsState(
-        targetValue = if (status == ServiceStatus.RUNNING) 1.04f else 1f,
-        animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
-        label = "serviceSwitchThumbScale",
+    val thumbColor by animateColorAsState(
+        targetValue = when (status) {
+            ServiceStatus.RUNNING -> MaterialTheme.colorScheme.primary
+            ServiceStatus.ERROR -> MaterialTheme.colorScheme.error
+            ServiceStatus.STARTING, ServiceStatus.STOPPING -> MaterialTheme.colorScheme.tertiary
+            ServiceStatus.STOPPED -> MaterialTheme.colorScheme.surface
+        },
+        animationSpec = AppMotion.colorChange,
+        label = "serviceSwitchThumbColor",
     )
-    val busy = status == ServiceStatus.STARTING || status == ServiceStatus.STOPPING
+    val offLabelColor by animateColorAsState(
+        targetValue = when (status) {
+            ServiceStatus.RUNNING -> MaterialTheme.colorScheme.onSurfaceVariant
+            else -> MaterialTheme.colorScheme.onSurface
+        },
+        animationSpec = AppMotion.colorChange,
+        label = "serviceSwitchOffLabel",
+    )
+    val onLabelColor by animateColorAsState(
+        targetValue = when (status) {
+            ServiceStatus.RUNNING -> MaterialTheme.colorScheme.primary
+            else -> MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        animationSpec = AppMotion.colorChange,
+        label = "serviceSwitchOnLabel",
+    )
     val enabled = status != ServiceStatus.STOPPING
     val switchDescription = remember(status, resources) {
         when (status) {
@@ -232,27 +263,30 @@ fun ServicePowerSwitch(
         ) {
             val travel = (maxWidth - AppDimens.serviceSwitchThumb - AppDimens.serviceSwitchInset * 2)
                 .coerceAtLeast(0.dp)
+            val travelPx = with(LocalDensity.current) { travel.toPx() }
+            val insetPx = with(LocalDensity.current) { AppDimens.serviceSwitchInset.toPx() }
+            val showThumbBorder = status == ServiceStatus.STOPPED || status == ServiceStatus.ERROR
             Box(
                 modifier = Modifier
-                    .offset(
-                        x = AppDimens.serviceSwitchInset + travel * thumbOffset,
-                        y = AppDimens.serviceSwitchInset,
-                    )
+                    .graphicsLayer {
+                        translationX = insetPx + travelPx * thumbOffset
+                        translationY = insetPx
+                    }
                     .size(AppDimens.serviceSwitchThumb)
-                    .scale(thumbScale)
-                    .shadow(2.dp, CircleShape, clip = false)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surface),
+                    .then(
+                        if (showThumbBorder) {
+                            Modifier.border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.outlineVariant,
+                                shape = CircleShape,
+                            )
+                        } else {
+                            Modifier
+                        },
+                    )
+                    .background(thumbColor),
             )
-            if (busy) {
-                LinearProgressIndicator(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .height(2.dp),
-                    trackColor = Color.Transparent,
-                )
-            }
         }
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -261,20 +295,12 @@ fun ServicePowerSwitch(
             Text(
                 text = offLabel,
                 style = MaterialTheme.typography.labelSmall,
-                color = if (thumbOffset <= 0.5f) {
-                    MaterialTheme.colorScheme.onSurface
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
+                color = offLabelColor,
             )
             Text(
                 text = onLabel,
                 style = MaterialTheme.typography.labelSmall,
-                color = if (thumbOffset > 0.5f) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
+                color = onLabelColor,
             )
         }
     }
@@ -310,13 +336,9 @@ fun EmptyState(icon: ImageVector, title: String, text: String) {
 
 @Composable
 fun AnimatedCount(value: String, modifier: Modifier = Modifier) {
-    AnimatedContent(
+    Crossfade(
         targetState = value,
-        transitionSpec = {
-            (fadeIn(tween(180)) + scaleIn(initialScale = 0.96f))
-                .togetherWith(fadeOut(tween(140)) + scaleOut(targetScale = 0.96f))
-                .using(SizeTransform(clip = false))
-        },
+        animationSpec = AppMotion.valueChange,
         label = "animatedCount",
         modifier = modifier,
     ) { text ->
@@ -353,8 +375,8 @@ fun SoftDivider() {
 fun VisibilityFade(visible: Boolean, content: @Composable () -> Unit) {
     AnimatedVisibility(
         visible = visible,
-        enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.98f),
-        exit = fadeOut(tween(120)) + scaleOut(targetScale = 0.98f),
+        enter = fadeIn(AppMotion.fade),
+        exit = fadeOut(tween(120, easing = LinearOutSlowInEasing)),
     ) {
         content()
     }
@@ -410,4 +432,162 @@ fun ModeChip(label: String, selected: Boolean = true) {
         ),
         border = null,
     )
+}
+
+@Composable
+fun TrafficStatsPanel(
+    stats: SingBoxTrafficStats,
+    active: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val downloadSpeed = remember(stats.downlinkSpeed, active) {
+        if (active) TrafficFormatter.formatSpeed(stats.downlinkSpeed) else "—"
+    }
+    val uploadSpeed = remember(stats.uplinkSpeed, active) {
+        if (active) TrafficFormatter.formatSpeed(stats.uplinkSpeed) else "—"
+    }
+    val downloadTotal = remember(stats.downlinkTotal, active) {
+        if (active) TrafficFormatter.formatTotal(stats.downlinkTotal) else "—"
+    }
+    val uploadTotal = remember(stats.uplinkTotal, active) {
+        if (active) TrafficFormatter.formatTotal(stats.uplinkTotal) else "—"
+    }
+    val accentAlpha by animateFloatAsState(
+        targetValue = when {
+            !active -> 0.45f
+            stats.hasTraffic -> 1f
+            else -> 0.78f
+        },
+        animationSpec = AppMotion.stateChange,
+        label = "trafficAccent",
+    )
+
+    FlatPanel(modifier = modifier) {
+        SectionTitle(stringResource(R.string.home_traffic))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TrafficStatColumn(
+                label = stringResource(R.string.traffic_download),
+                value = downloadSpeed,
+                icon = Icons.Filled.ArrowDownward,
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = accentAlpha),
+                modifier = Modifier.weight(1f),
+            )
+            VerticalDivider(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .padding(vertical = 6.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
+            )
+            TrafficStatColumn(
+                label = stringResource(R.string.traffic_upload),
+                value = uploadSpeed,
+                icon = Icons.Filled.ArrowUpward,
+                tint = MaterialTheme.colorScheme.tertiary.copy(alpha = accentAlpha),
+                modifier = Modifier.weight(1f),
+            )
+        }
+        SoftDivider()
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            TrafficTotalLabel(
+                label = stringResource(R.string.traffic_total_download),
+                value = downloadTotal,
+            )
+            TrafficTotalLabel(
+                label = stringResource(R.string.traffic_total_upload),
+                value = uploadTotal,
+            )
+        }
+        if (active && !stats.available) {
+            Text(
+                text = stringResource(R.string.traffic_idle),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun TrafficStatColumn(
+    label: String,
+    value: String,
+    icon: ImageVector,
+    tint: Color,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.padding(horizontal = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = tint,
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        FlatAnimatedText(
+            text = value,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+    }
+}
+
+@Composable
+private fun FlatAnimatedText(
+    text: String,
+    style: TextStyle,
+    fontWeight: FontWeight,
+    color: Color,
+) {
+    Crossfade(
+        targetState = text,
+        animationSpec = AppMotion.valueChange,
+        label = "flatAnimatedText",
+    ) { target ->
+        Text(
+            text = target,
+            style = style,
+            fontWeight = fontWeight,
+            color = color,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun TrafficTotalLabel(label: String, value: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        FlatAnimatedText(
+            text = value,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+    }
 }

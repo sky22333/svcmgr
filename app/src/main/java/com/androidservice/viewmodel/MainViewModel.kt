@@ -15,11 +15,11 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.androidservice.data.AppConfigFile
 import com.androidservice.data.BinaryConfig
-import com.androidservice.data.BinaryInfo
 import com.androidservice.data.LogEntry
 import com.androidservice.data.LogLevel
 import com.androidservice.data.ServiceState
 import com.androidservice.data.ServiceStatus
+import com.androidservice.data.SingBoxTrafficStats
 import com.androidservice.manager.AppConfigManager
 import com.androidservice.manager.RemoteConfigRefreshResult
 import com.androidservice.manager.BinaryManager
@@ -60,6 +60,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var singBoxProxyBound = false
     private var stateJob: Job? = null
     private var logJob: Job? = null
+    private var trafficJob: Job? = null
     private var activeServiceKind: ServiceKind? = null
 
     private val logDeque = ArrayDeque<LogEntry>(MAX_LOG_ENTRIES)
@@ -74,9 +75,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _serviceStatus = MutableStateFlow(ServiceStatus.STOPPED)
     val serviceStatus: StateFlow<ServiceStatus> = _serviceStatus.asStateFlow()
-
-    private val _binaryList = MutableStateFlow<List<BinaryInfo>>(emptyList())
-    val binaryList: StateFlow<List<BinaryInfo>> = _binaryList.asStateFlow()
 
     private val _logs = MutableStateFlow<List<LogEntry>>(emptyList())
     val logs: StateFlow<List<LogEntry>> = _logs.asStateFlow()
@@ -101,6 +99,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _serviceErrorMessage = MutableStateFlow<String?>(null)
     val serviceErrorMessage: StateFlow<String?> = _serviceErrorMessage.asStateFlow()
+
+    private val _singBoxTraffic = MutableStateFlow(SingBoxTrafficStats())
+    val singBoxTraffic: StateFlow<SingBoxTrafficStats> = _singBoxTraffic.asStateFlow()
 
     private val _refreshingRemoteFiles = MutableStateFlow<Set<String>>(emptySet())
     val refreshingRemoteFiles: StateFlow<Set<String>> = _refreshingRemoteFiles.asStateFlow()
@@ -271,37 +272,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun importConfig(jsonString: String) {
-        viewModelScope.launch {
-            val config = configManager.importConfigFromJson(jsonString)
-            if (config == null) {
-                addLog(LogLevel.ERROR, "配置格式错误，导入失败")
-                return@launch
-            }
-
-            updateConfig(config)
-            addLog(LogLevel.INFO, "配置导入成功")
-        }
-    }
-
-    fun resetConfig() {
-        viewModelScope.launch {
-            configManager.clearConfig()
-            _currentConfig.value = BinaryConfig()
-            _singBoxRunMode.value = null
-            _singBoxListenEndpoint.value = null
-            addLog(LogLevel.INFO, "配置已重置")
-        }
-    }
-
     fun loadAvailableBinaryNames() {
         viewModelScope.launch {
-            val names = (binaryManager.getAvailableKernelNames() + SingBoxConstants.BINARY_NAME)
-                .distinct()
-                .sorted()
+            val names = buildAvailableBinaryNames(binaryManager.getAvailableKernelNames())
             _availableBinaryNames.value = names
-            if (_currentConfig.value.binaryName.isBlank() && names.isNotEmpty()) {
-                updateConfig(_currentConfig.value.copy(binaryName = names.first()))
+            if (_currentConfig.value.binaryName.isBlank()) {
+                updateConfig(_currentConfig.value.copy(binaryName = SingBoxConstants.BINARY_NAME))
             }
         }
     }
@@ -529,11 +505,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         when (activeServiceKind) {
             ServiceKind.SINGBOX_VPN -> {
                 val service = boundSingBoxVpnService ?: return
-                bindSingBoxObservers(service.serviceState, service.logs)
+                bindSingBoxObservers(service.serviceState, service.logs, service.trafficStats)
             }
             ServiceKind.SINGBOX_PROXY -> {
                 val service = boundSingBoxProxyService ?: return
-                bindSingBoxObservers(service.serviceState, service.logs)
+                bindSingBoxObservers(service.serviceState, service.logs, service.trafficStats)
             }
             ServiceKind.BINARY -> {
                 val service = boundBinaryService ?: return
@@ -559,6 +535,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun bindSingBoxObservers(
         state: StateFlow<ServiceState>,
         logs: SharedFlow<LogEntry>,
+        traffic: StateFlow<SingBoxTrafficStats>,
     ) {
         stateJob = viewModelScope.launch {
             state.collectLatest { serviceState ->
@@ -569,18 +546,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 } else {
                     ServiceStatus.STOPPED
                 }
+                if (!serviceState.isRunning) {
+                    _singBoxTraffic.value = SingBoxTrafficStats()
+                }
             }
         }
         logJob = viewModelScope.launch {
             logs.collect { appendLog(it) }
+        }
+        trafficJob = viewModelScope.launch {
+            traffic.collect { _singBoxTraffic.value = it }
         }
     }
 
     private fun clearServiceObservation(status: ServiceStatus) {
         stateJob?.cancel()
         logJob?.cancel()
+        trafficJob?.cancel()
         activeServiceKind = null
         _serviceStatus.value = status
+        _singBoxTraffic.value = SingBoxTrafficStats()
         if (status != ServiceStatus.ERROR) {
             clearServiceError()
         }
@@ -599,13 +584,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun loadBinaryList() {
         viewModelScope.launch {
             val binaries = binaryManager.initializeBinaries()
-            _binaryList.value = binaries
-            _availableBinaryNames.value = (binaries.map { it.name } + SingBoxConstants.BINARY_NAME)
-                .distinct()
-                .sorted()
+            _availableBinaryNames.value = buildAvailableBinaryNames(binaries.map { it.name })
 
-            if (_currentConfig.value.binaryName.isBlank() && _availableBinaryNames.value.isNotEmpty()) {
-                _currentConfig.value = _currentConfig.value.copy(binaryName = _availableBinaryNames.value.first())
+            if (_currentConfig.value.binaryName.isBlank()) {
+                _currentConfig.value = _currentConfig.value.copy(binaryName = SingBoxConstants.BINARY_NAME)
             }
             refreshSingBoxRunMode()
         }
@@ -690,5 +672,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         private const val TAG = "MainViewModel"
         private const val MAX_LOG_ENTRIES = 500
         private const val LOG_UPDATE_DELAY_MS = 200L
+
+        private fun buildAvailableBinaryNames(kernelNames: List<String>): List<String> {
+            val others = kernelNames
+                .filterNot { it.equals(SingBoxConstants.BINARY_NAME, ignoreCase = true) }
+                .distinct()
+                .sorted()
+            return listOf(SingBoxConstants.BINARY_NAME) + others
+        }
     }
 }

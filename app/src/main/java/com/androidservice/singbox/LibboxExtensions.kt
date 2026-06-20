@@ -17,9 +17,5 @@ class LibboxStringIterator(values: Iterable<String>) : StringIterator {
     override fun next(): String = iterator.next()
 }
 
-fun StringIterator.toList(): List<String> = buildList {
-    while (hasNext()) add(next())
-}
-
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 fun RoutePrefix.toIpPrefix(): IpPrefix = IpPrefix(InetAddress.getByName(address()), prefix())

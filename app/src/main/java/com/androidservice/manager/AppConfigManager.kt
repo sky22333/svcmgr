@@ -3,7 +3,6 @@ package com.androidservice.manager
 import android.content.Context
 import android.util.Log
 import com.androidservice.data.AppConfigFile
-import com.androidservice.data.ConfigFileType
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
@@ -55,10 +54,8 @@ class AppConfigManager(private val context: Context) {
             AppConfigFile(
                 fileName = file.name,
                 content = file.readText(Charsets.UTF_8),
-                filePath = file.absolutePath,
                 lastModified = file.lastModified(),
                 size = file.length(),
-                fileExtension = file.extension.takeIf { it.isNotBlank() }?.let { ".$it" }.orEmpty(),
                 remoteUrl = getRemoteUrl(file.name).orEmpty(),
             )
         }.onFailure {
@@ -74,10 +71,8 @@ class AppConfigManager(private val context: Context) {
             .map { file ->
                 AppConfigFile(
                     fileName = file.name,
-                    filePath = file.absolutePath,
                     lastModified = file.lastModified(),
                     size = file.length(),
-                    fileExtension = file.extension.takeIf { it.isNotBlank() }?.let { ".$it" }.orEmpty(),
                     remoteUrl = remoteSources[file.name].orEmpty(),
                 )
             }
@@ -148,33 +143,6 @@ class AppConfigManager(private val context: Context) {
         deleted
     }
 
-    suspend fun renameConfigFile(oldFileName: String, newFileName: String): Boolean = withContext(Dispatchers.IO) {
-        if (!isValidFileName(oldFileName) || !isValidFileName(newFileName)) return@withContext false
-        val oldFile = File(configDir, oldFileName)
-        val newFile = File(configDir, newFileName)
-        val renamed = oldFile.exists() && !newFile.exists() && oldFile.renameTo(newFile)
-        if (renamed) {
-            getRemoteUrl(oldFileName)?.let { url ->
-                removeRemoteUrl(oldFileName)
-                saveRemoteUrl(newFileName, url)
-            }
-        }
-        renamed
-    }
-
-    suspend fun copyConfigFile(sourceFileName: String, targetFileName: String): Boolean = withContext(Dispatchers.IO) {
-        if (!isValidFileName(sourceFileName) || !isValidFileName(targetFileName)) return@withContext false
-        val source = File(configDir, sourceFileName)
-        val target = File(configDir, targetFileName)
-        source.exists() && !target.exists() && runCatching {
-            source.copyTo(target)
-            getRemoteUrl(sourceFileName)?.let { saveRemoteUrl(targetFileName, it) }
-            true
-        }.getOrDefault(false)
-    }
-
-    fun getConfigDirectory(): File = configDir
-
     fun getConfigFilePath(fileName: String): String = File(configDir, fileName).absolutePath
 
     fun isValidFileName(fileName: String): Boolean {
@@ -186,12 +154,6 @@ class AppConfigManager(private val context: Context) {
             !isInternalFile(trimmed) &&
             trimmed.none { it in invalidChars }
     }
-
-    fun getSuggestedFileExtension(fileName: String): String {
-        return File(fileName).extension.takeIf { it.isNotBlank() }?.let { ".$it" } ?: ".json"
-    }
-
-    fun getSupportedConfigTypes(): List<ConfigFileType> = ConfigFileType.entries
 
     private fun isInternalFile(fileName: String): Boolean = fileName == REMOTE_SOURCES_FILE_NAME
 

@@ -330,7 +330,6 @@ private suspend fun syncRemoteConfig(
                             fileName = trimmedName,
                             content = result.content,
                             remoteUrl = trimmedUrl,
-                            fileExtension = fileExtension(trimmedName),
                         ),
                     )
                     snackbarHostState.showSnackbar(refreshSuccessMessage)
@@ -384,7 +383,6 @@ private suspend fun saveFile(
             fileName = trimmedName,
             content = content,
             remoteUrl = remoteUrl.trim(),
-            fileExtension = fileExtension(trimmedName),
         ),
     )
     onSaving(false)
@@ -400,10 +398,6 @@ private suspend fun saveFile(
 private fun isValidFileName(fileName: String): Boolean {
     val invalidChars = setOf('/', '\\', ':', '*', '?', '"', '<', '>', '|')
     return fileName.length <= 255 && !fileName.startsWith(".") && fileName.none { it in invalidChars }
-}
-
-private fun fileExtension(fileName: String): String {
-    return fileName.substringAfterLast('.', "").takeIf { it.isNotBlank() && it != fileName }?.let { ".$it" }.orEmpty()
 }
 
 private const val MAX_FILE_BYTES = 2 * 1024 * 1024

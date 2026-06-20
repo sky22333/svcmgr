@@ -123,8 +123,6 @@ class BinaryProcessService : Service() {
         }
     }
 
-    fun getCurrentState(): ServiceState = _serviceState.value
-
     override fun onDestroy() {
         processManager.destroy()
         serviceScope.cancel()
