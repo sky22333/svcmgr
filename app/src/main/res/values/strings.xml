@@ -98,6 +98,9 @@
     <string name="settings_max_restarts">最大重启次数（空为不限）</string>
     <string name="settings_background">后台运行</string>
     <string name="settings_background_desc">仅在频繁被系统停止时使用</string>
+    <string name="settings_remote_headers">远程请求头</string>
+    <string name="settings_remote_headers_hint">Authorization: Bearer token</string>
+    <string name="settings_remote_headers_desc">每行一个 Header，会自动用于远程配置预览和同步请求。</string>
     <string name="settings_runtime_backup">运行设置备份</string>
     <string name="files_title">配置文件</string>
     <string name="files_subtitle">创建、编辑、远程同步或删除配置</string>

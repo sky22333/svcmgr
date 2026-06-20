@@ -25,11 +25,13 @@ class ConfigManager(private val context: Context) {
 
     val configFlow: Flow<BinaryConfig> = context.dataStore.data.map { preferences ->
         val environmentVariables = parseEnvironment(preferences[ENVIRONMENT_VARIABLES_KEY].orEmpty())
+        val remoteConfigHeaders = parseStringMap(preferences[REMOTE_CONFIG_HEADERS_KEY].orEmpty())
         BinaryConfig(
             binaryName = preferences[BINARY_NAME_KEY].orEmpty(),
             argumentsString = preferences[ARGUMENTS_KEY].orEmpty(),
             configFileName = preferences[CONFIG_FILE_NAME_KEY].orEmpty(),
             environmentVariables = environmentVariables,
+            remoteConfigHeaders = remoteConfigHeaders,
             autoRestart = preferences[AUTO_RESTART_KEY] ?: false,
             restartDelay = preferences[RESTART_DELAY_KEY] ?: DEFAULT_RESTART_DELAY_MS,
             maxRestarts = preferences[MAX_RESTARTS_KEY] ?: -1
@@ -42,6 +44,7 @@ class ConfigManager(private val context: Context) {
             preferences[ARGUMENTS_KEY] = config.argumentsString
             preferences[CONFIG_FILE_NAME_KEY] = config.configFileName
             preferences[ENVIRONMENT_VARIABLES_KEY] = gson.toJson(config.environmentVariables)
+            preferences[REMOTE_CONFIG_HEADERS_KEY] = gson.toJson(config.remoteConfigHeaders)
             preferences[AUTO_RESTART_KEY] = config.autoRestart
             preferences[RESTART_DELAY_KEY] = config.restartDelay
             preferences[MAX_RESTARTS_KEY] = config.maxRestarts
@@ -76,7 +79,9 @@ class ConfigManager(private val context: Context) {
 
     fun getConfigFilePath(): String = File(context.filesDir, CONFIG_FILE_NAME).absolutePath
 
-    private fun parseEnvironment(json: String): Map<String, String> {
+    private fun parseEnvironment(json: String): Map<String, String> = parseStringMap(json)
+
+    private fun parseStringMap(json: String): Map<String, String> {
         if (json.isBlank()) return emptyMap()
         return runCatching {
             val type = object : TypeToken<Map<String, String>>() {}.type
@@ -93,6 +98,7 @@ class ConfigManager(private val context: Context) {
         private val ARGUMENTS_KEY = stringPreferencesKey("arguments")
         private val CONFIG_FILE_NAME_KEY = stringPreferencesKey("config_file_name")
         private val ENVIRONMENT_VARIABLES_KEY = stringPreferencesKey("environment_variables")
+        private val REMOTE_CONFIG_HEADERS_KEY = stringPreferencesKey("remote_config_headers")
         private val AUTO_RESTART_KEY = booleanPreferencesKey("auto_restart")
         private val RESTART_DELAY_KEY = longPreferencesKey("restart_delay")
         private val MAX_RESTARTS_KEY = intPreferencesKey("max_restarts")

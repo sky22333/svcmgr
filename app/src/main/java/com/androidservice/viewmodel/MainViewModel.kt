@@ -363,7 +363,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         _refreshingRemoteFiles.value += safeName
         return try {
-            appConfigManager.refreshFromRemote(safeName).also { result ->
+            appConfigManager.refreshFromRemote(safeName, _currentConfig.value.remoteConfigHeaders).also { result ->
                 when (result) {
                     is RemoteConfigRefreshResult.Success -> {
                         refreshAppConfigFiles()
@@ -385,7 +385,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (trimmedUrl.isBlank()) {
             return RemoteConfigRefreshResult.Failure("远程 URL 不能为空")
         }
-        return appConfigManager.fetchRemotePreview(trimmedUrl).also { result ->
+        return appConfigManager.fetchRemotePreview(
+            trimmedUrl,
+            _currentConfig.value.remoteConfigHeaders,
+        ).also { result ->
             if (result is RemoteConfigRefreshResult.Failure) {
                 addLog(LogLevel.ERROR, "拉取远程配置失败: ${result.message}")
             }

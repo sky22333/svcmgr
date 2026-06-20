@@ -90,6 +90,9 @@ fun ConfigScreen(
     var expanded by remember { mutableStateOf(false) }
     var configExpanded by remember { mutableStateOf(false) }
     var argumentsText by remember(config.argumentsString) { mutableStateOf(config.argumentsString) }
+    var remoteHeadersText by remember(config.remoteConfigHeaders) {
+        mutableStateOf(formatRemoteHeaders(config.remoteConfigHeaders))
+    }
     var restartDelayText by remember(config.restartDelay) { mutableStateOf((config.restartDelay / 1000).toString()) }
     var maxRestartsText by remember(config.maxRestarts) {
         mutableStateOf(config.maxRestarts.takeIf { it >= 0 }?.toString().orEmpty())
@@ -105,11 +108,12 @@ fun ConfigScreen(
         if (isSingBox) viewModel.refreshSingBoxRunMode()
     }
 
-    LaunchedEffect(userEdited, argumentsText, restartDelayText, maxRestartsText) {
+    LaunchedEffect(userEdited, argumentsText, remoteHeadersText, restartDelayText, maxRestartsText) {
         if (!userEdited) return@LaunchedEffect
         delay(800)
         val next = latestConfig.copy(
             argumentsString = argumentsText,
+            remoteConfigHeaders = parseRemoteHeaders(remoteHeadersText),
             restartDelay = restartDelayText.toLongOrNull()?.coerceAtLeast(1)?.times(1000) ?: latestConfig.restartDelay,
             maxRestarts = maxRestartsText.toIntOrNull() ?: -1,
         )
@@ -382,6 +386,28 @@ fun ConfigScreen(
         }
 
         FlatPanel {
+            SectionTitle(stringResource(R.string.settings_remote_headers))
+            OutlinedTextField(
+                value = remoteHeadersText,
+                onValueChange = {
+                    userEdited = true
+                    remoteHeadersText = it
+                },
+                label = { Text(stringResource(R.string.settings_remote_headers), style = MaterialTheme.typography.bodySmall) },
+                placeholder = { Text(stringResource(R.string.settings_remote_headers_hint), style = MaterialTheme.typography.bodySmall) },
+                textStyle = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 3,
+                colors = compactTextFieldColors(),
+            )
+            Text(
+                text = stringResource(R.string.settings_remote_headers_desc),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        FlatPanel {
             SectionTitle(stringResource(R.string.settings_background))
             Text(
                 text = stringResource(R.string.settings_background_desc),
@@ -426,3 +452,19 @@ private fun compactTextFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedTextColor = MaterialTheme.colorScheme.onSurface,
     unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
 )
+
+private fun formatRemoteHeaders(headers: Map<String, String>): String =
+    headers.entries.joinToString("\n") { (name, value) -> "$name: $value" }
+
+private fun parseRemoteHeaders(text: String): Map<String, String> =
+    text.lineSequence()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .mapNotNull { line ->
+            val separator = line.indexOf(':')
+            if (separator <= 0) return@mapNotNull null
+            val name = line.substring(0, separator).trim()
+            val value = line.substring(separator + 1).trim()
+            if (name.isEmpty() || value.isEmpty()) null else name to value
+        }
+        .toMap()

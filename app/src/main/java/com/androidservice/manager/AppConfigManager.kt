@@ -79,7 +79,10 @@ class AppConfigManager(private val context: Context) {
             .sortedByDescending { it.lastModified }
     }
 
-    suspend fun refreshFromRemote(fileName: String): RemoteConfigRefreshResult = withContext(Dispatchers.IO) {
+    suspend fun refreshFromRemote(
+        fileName: String,
+        headers: Map<String, String> = emptyMap(),
+    ): RemoteConfigRefreshResult = withContext(Dispatchers.IO) {
         val safeName = fileName.trim()
         if (!isValidFileName(safeName)) {
             return@withContext RemoteConfigRefreshResult.Failure("文件名无效")
@@ -96,7 +99,7 @@ class AppConfigManager(private val context: Context) {
         val existing = loadConfigFile(safeName)
             ?: return@withContext RemoteConfigRefreshResult.Failure("配置文件不存在")
 
-        RemoteConfigFetcher.fetch(remoteUrl)
+        RemoteConfigFetcher.fetch(remoteUrl, headers)
             .fold(
                 onSuccess = { content ->
                     val saved = saveConfigFile(
@@ -118,7 +121,10 @@ class AppConfigManager(private val context: Context) {
             )
     }
 
-    suspend fun fetchRemotePreview(url: String): RemoteConfigRefreshResult = withContext(Dispatchers.IO) {
+    suspend fun fetchRemotePreview(
+        url: String,
+        headers: Map<String, String> = emptyMap(),
+    ): RemoteConfigRefreshResult = withContext(Dispatchers.IO) {
         val trimmedUrl = url.trim()
         if (trimmedUrl.isBlank()) {
             return@withContext RemoteConfigRefreshResult.Failure("远程 URL 不能为空")
@@ -127,7 +133,7 @@ class AppConfigManager(private val context: Context) {
             return@withContext RemoteConfigRefreshResult.Failure("仅支持 http/https 链接")
         }
 
-        RemoteConfigFetcher.fetch(trimmedUrl).fold(
+        RemoteConfigFetcher.fetch(trimmedUrl, headers).fold(
             onSuccess = { RemoteConfigRefreshResult.Success(it) },
             onFailure = {
                 Log.e(TAG, "预览远程配置失败", it)

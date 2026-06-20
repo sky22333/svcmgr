@@ -48,6 +48,7 @@ data class BinaryConfig(
     val argumentsString: String = "",
     val configFileName: String = "",
     val environmentVariables: Map<String, String> = emptyMap(),
+    val remoteConfigHeaders: Map<String, String> = emptyMap(),
     val autoRestart: Boolean = false,
     val restartDelay: Long = 5000L,
     val maxRestarts: Int = -1

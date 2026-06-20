@@ -7,7 +7,10 @@ import java.net.URL
 
 object RemoteConfigFetcher {
 
-    suspend fun fetch(url: String): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun fetch(
+        url: String,
+        headers: Map<String, String> = emptyMap(),
+    ): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
             val trimmedUrl = url.trim()
             require(isSupportedUrl(trimmedUrl)) { "仅支持 http/https 链接" }
@@ -17,6 +20,7 @@ object RemoteConfigFetcher {
                 readTimeout = READ_TIMEOUT_MS
                 instanceFollowRedirects = true
                 requestMethod = "GET"
+                headers.forEach { (name, value) -> setRequestProperty(name, value) }
             }
 
             try {
