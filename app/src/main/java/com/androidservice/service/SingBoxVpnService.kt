@@ -132,7 +132,7 @@ class SingBoxVpnService : VpnService() {
                 if (running) getString(R.string.singbox_notification_running)
                 else getString(R.string.singbox_notification_starting),
             )
-            .setSmallIcon(R.drawable.ic_notification_service)
+            .setSmallIcon(R.drawable.ic_notification_logo)
             .setContentIntent(launchIntent)
             .setOngoing(running)
             .setShowWhen(false)

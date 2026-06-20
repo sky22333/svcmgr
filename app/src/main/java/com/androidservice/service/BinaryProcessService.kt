@@ -238,7 +238,7 @@ class BinaryProcessService : Service() {
         return NotificationCompat.Builder(this, AndroidServiceApplication.NOTIFICATION_CHANNEL_ID)
             .setContentTitle(getString(R.string.service_notification_title))
             .setContentText(if (isRunning) "程序进程正在运行" else getString(R.string.service_notification_text))
-            .setSmallIcon(R.drawable.ic_notification_service)
+            .setSmallIcon(R.drawable.ic_notification_logo)
             .setContentIntent(launchIntent)
             .setOngoing(isRunning)
             .setShowWhen(false)

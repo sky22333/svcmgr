@@ -117,7 +117,7 @@ class SingBoxProxyService : Service() {
                 if (running) getString(R.string.singbox_proxy_notification_running)
                 else getString(R.string.singbox_proxy_notification_starting),
             )
-            .setSmallIcon(R.drawable.ic_notification_service)
+            .setSmallIcon(R.drawable.ic_notification_logo)
             .setContentIntent(launchIntent)
             .setOngoing(running)
             .setShowWhen(false)
